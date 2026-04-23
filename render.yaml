@@ -1,0 +1,21 @@
+services:
+  - type: worker
+    name: royalitybots
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: MONGO
+        value: "true"
+      - key: MONGO_URI
+        sync: false
+      - key: SUPERADMIN_IDS
+        sync: false
+      - key: WEB_PORT
+        value: "10000"
+      - key: WEB_DOMAIN
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.0"
