@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Analytics — RoyalityBots</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#06060e;--s1:#0c0c18;--s2:#111120;
+  --border:#1c1c2e;--border2:#252538;
+  --accent:#7c3aed;--a2:#a855f7;--a3:#c084fc;
+  --text:#f0eeff;--muted:#7c7c9a;--muted2:#4a4a6a;
+  --gold:#f59e0b;--silver:#94a3b8;--bronze:#b45309;
+  --green:#10b981;--red:#f43f5e;
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Outfit',sans-serif;
+  min-height:100vh;
+  background-image:radial-gradient(ellipse 80% 40% at 50% -5%,rgba(124,58,237,.15),transparent 55%);
+}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── Header ── */
+.header{
+  text-align:center;
+  padding:36px 18px 0;
+  max-width:640px;margin:0 auto;
+}
+.brand{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.18);
+  border-radius:100px;padding:5px 14px;
+  font-size:11px;font-weight:600;color:var(--a3);
+  margin-bottom:18px;letter-spacing:.04em;
+}
+.brand-dot{width:6px;height:6px;border-radius:50%;background:var(--a2);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.title{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.25;margin-bottom:6px}
+.title span{background:linear-gradient(135deg,var(--a3),#e879f9);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.meta{display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;color:var(--muted);margin:10px 0 24px;flex-wrap:wrap}
+
+/* ── Status ── */
+.status-wrap{max-width:640px;margin:0 auto 16px;padding:0 16px}
+.sp{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:11px;padding:11px 16px;font-size:12px;font-weight:600}
+.sp-live{background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.14);color:var(--green)}
+.sp-closed{background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.14);color:var(--a3)}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lp 1.5s infinite;flex-shrink:0}
+@keyframes lp{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+/* ── Wrap ── */
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 60px}
+
+/* ── Channel card ── */
+.ch-card{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:18px;padding:18px;margin-bottom:14px;
+}
+.ch-top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.ch-icon{width:50px;height:50px;border-radius:13px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--a2));
+  display:flex;align-items:center;justify-content:center;font-size:22px}
+.ch-name{font-size:17px;font-weight:700;line-height:1.2}
+.ch-un{font-size:12px;color:var(--a3);margin-top:2px}
+.ch-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ch-num{background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center}
+.ch-num-val{font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;letter-spacing:-.02em}
+.ch-num-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+.ch-num-val.pos{color:var(--green)}
+.ch-num-val.neg{color:var(--red)}
+
+/* ── Quick stats ── */
+.qs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+.qc{background:var(--s1);border:1px solid var(--border);border-radius:13px;padding:14px;text-align:center}
+.qc-val{font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace}
+.qc-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+
+/* ── Prizes ── */
+.prizes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.prize{background:var(--s1);border:1px solid var(--border);border-radius:13px;padding:14px;text-align:center}
+.prize.gold{border-color:rgba(245,158,11,.25)}
+.prize.silver{border-color:rgba(148,163,184,.18)}
+.prize.bronze{border-color:rgba(180,83,9,.18)}
+.prize-ico{font-size:20px;margin-bottom:5px}
+.prize-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
+.prize-txt{font-size:11px;font-weight:600;line-height:1.35}
+.prize.gold .prize-txt{color:var(--gold)}
+.prize.silver .prize-txt{color:var(--silver)}
+.prize.bronze .prize-txt{color:var(--bronze)}
+
+/* ── Panel card ── */
+.panel{background:var(--s1);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:14px}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.ph h2{font-size:13px;font-weight:700}
+.pb{padding:16px}
+.ch-wrap{height:180px;position:relative}
+
+/* ── Vote rows ── */
+.vote-row{padding:11px 16px;border-bottom:1px solid rgba(28,28,46,.5);transition:background .12s}
+.vote-row:last-child{border-bottom:none}
+.vote-row:active{background:rgba(124,58,237,.06)}
+.vr-top{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.rank-badge{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.rk1{background:rgba(245,158,11,.15);color:var(--gold)}
+.rk2{background:rgba(148,163,184,.1);color:var(--silver)}
+.rk3{background:rgba(180,83,9,.1);color:var(--bronze)}
+.rkn{background:rgba(28,28,46,.8);color:var(--muted2);font-size:9px}
+.vname{font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vpct{font-size:12px;font-weight:700;color:var(--a3);font-family:'JetBrains Mono',monospace;margin-left:auto;white-space:nowrap}
+.vcnt{font-size:11px;color:var(--muted);margin-left:6px;white-space:nowrap}
+.bar{height:5px;background:rgba(28,28,46,.8);border-radius:3px;overflow:hidden}
+.bar-f{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--a2));transition:width .5s cubic-bezier(.34,1.2,.64,1)}
+.bar-gold{background:linear-gradient(90deg,#d97706,var(--gold))}
+.bar-silver{background:linear-gradient(90deg,#64748b,var(--silver))}
+.bar-bronze{background:linear-gradient(90deg,#92400e,var(--bronze))}
+
+/* ── Refer rows ── */
+.ref-row{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid rgba(28,28,46,.5);gap:10px}
+.ref-row:last-child{border-bottom:none}
+.ref-rank{width:22px;text-align:center;font-size:13px;font-weight:700;color:var(--muted2);flex-shrink:0}
+.ref-name{flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ref-cnt{font-size:12px;font-weight:700;color:var(--a3);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.ref-bar{width:60px;height:4px;background:rgba(28,28,46,.8);border-radius:2px;overflow:hidden;flex-shrink:0}
+.ref-bar-f{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--a2))}
+
+/* ── Sort ── */
+.sort-row{display:flex;gap:4px}
+.sort-btn{padding:4px 11px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;font-family:'Outfit',sans-serif;transition:all .12s;-webkit-tap-highlight-color:transparent}
+.sort-btn.on{background:rgba(124,58,237,.22);color:var(--a3)}
+.sort-btn:not(.on){background:transparent;color:var(--muted);border:1px solid var(--border2)}
+
+/* ── Action buttons ── */
+.action-row{display:flex;flex-direction:column;gap:10px;margin:20px 0 10px}
+.abtn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:14px 20px;border-radius:13px;
+  font-size:14px;font-weight:600;cursor:pointer;
+  transition:all .15s;border:none;
+  font-family:'Outfit',sans-serif;
+  width:100%;
+}
+.a-tg{background:rgba(37,150,190,.12);border:1px solid rgba(37,150,190,.18);color:#40b3d8}
+.a-tg:active{background:rgba(37,150,190,.22)}
+.a-copy{background:var(--s2);border:1px solid var(--border2);color:var(--muted)}
+.a-copy:active{border-color:var(--a2);color:var(--a3)}
+.a-del{background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);color:var(--red)}
+.a-del:active{background:rgba(244,63,94,.18)}
+
+/* ── Footer ── */
+.footer{text-align:center;padding:24px 16px 32px;font-size:12px;color:var(--muted2)}
+.footer a{color:var(--a3);text-decoration:none}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(16px) scale(.95);
+  z-index:999;background:var(--s2);border:1px solid var(--border2);
+  border-radius:10px;padding:11px 18px;font-size:13px;font-weight:500;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);opacity:0;
+  transition:all .22s cubic-bezier(.34,1.56,.64,1);pointer-events:none;
+  white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0) scale(1);opacity:1}
+.toast.ok{border-color:rgba(16,185,129,.28);color:var(--green)}
+.toast.err{border-color:rgba(244,63,94,.28);color:var(--red)}
+
+/* ── Desktop upgrades ── */
+@media(min-width:480px){
+  .header{padding:44px 22px 0}
+  .wrap{padding:0 22px 60px}
+  .title{font-size:28px}
+  .qs{grid-template-columns:repeat(4,1fr)}
+  .action-row{flex-direction:row}
+  .abtn{width:auto;flex:1}
+  .meta{gap:16px}
+  .prize-txt{font-size:12px}
+  .ch-wrap{height:200px}
+}
+@media(min-width:700px){
+  .prizes{grid-template-columns:repeat(3,1fr)}
+  .title{font-size:32px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand"><span class="brand-dot"></span>Powered by RoyalityBots</div>
+  <div class="title" id="p-title">Loading...</div>
+  <div class="meta" id="p-meta"></div>
+</div>
+
+<div class="status-wrap">
+  <div class="sp sp-closed" id="p-status">Loading...</div>
+</div>
+
+<div class="wrap">
+
+  <!-- Channel card -->
+  <div class="ch-card">
+    <div class="ch-top">
+      <div class="ch-icon">📢</div>
+      <div>
+        <div class="ch-name" id="ch-name">Loading...</div>
+        <div class="ch-un" id="ch-un"></div>
+      </div>
+    </div>
+    <div class="ch-nums">
+      <div class="ch-num">
+        <div class="ch-num-val" id="ch-before">—</div>
+        <div class="ch-num-lbl">Before</div>
+      </div>
+      <div class="ch-num">
+        <div class="ch-num-val" id="ch-now">—</div>
+        <div class="ch-num-lbl">During</div>
+      </div>
+      <div class="ch-num">
+        <div class="ch-num-val" id="ch-gain">—</div>
+        <div class="ch-num-lbl">Gained</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick stats -->
+  <div class="qs" id="qs-row"></div>
+
+  <!-- Growth chart -->
+  <div class="panel">
+    <div class="ph"><h2>📈 Channel Growth</h2></div>
+    <div class="pb"><div class="ch-wrap"><canvas id="growthChart"></canvas></div></div>
+  </div>
+
+  <!-- Prizes (giveaway) -->
+  <div id="prizes-section" style="display:none">
+    <div class="prizes" id="prizes-row"></div>
+  </div>
+
+  <!-- Vote / Refer distribution chart -->
+  <div class="panel" id="dist-panel" style="display:none">
+    <div class="ph"><h2 id="dist-title">📊 Distribution</h2></div>
+    <div class="pb"><div class="ch-wrap"><canvas id="distChart"></canvas></div></div>
+  </div>
+
+  <!-- Results -->
+  <div class="panel" id="results-panel" style="display:none">
+    <div class="ph">
+      <h2 id="results-title">🏆 Results</h2>
+      <div class="sort-row" id="sort-row"></div>
+    </div>
+    <div id="results-list"></div>
+  </div>
+
+  <!-- Actions -->
+  <div class="action-row">
+    <button class="abtn a-tg" onclick="shareTg()">✈️ Share</button>
+    <button class="abtn a-copy" id="copy-btn" onclick="copyLink()">🔗 Copy Link</button>
+    <button class="abtn a-del" onclick="deletePanel()">🗑 Delete</button>
+  </div>
+
+</div>
+
+<div class="footer">
+  Hosted via <a href="#">@RoyalityBots</a> · Create your own giveaway today
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = __PANEL_DATA__;
+const TOKEN = '__PANEL_TOKEN__';
+let distInst, growthInst;
+
+function toast(m, ok=true){
+  const e = document.getElementById('toast');
+  e.textContent = m;
+  e.className = 'toast show ' + (ok ? 'ok' : 'err');
+  setTimeout(() => e.className = 'toast', 3000);
+}
+
+function pct(v, tot){ return tot > 0 ? Math.round(v / tot * 100) : 0; }
+
+function init(){
+  const d = DATA;
+  const isGA = d.panel_type === 'giveaway';
+
+  // Title
+  document.getElementById('p-title').innerHTML = isGA
+    ? '🗳 <span>' + (d.channel_title || 'Giveaway') + '</span>'
+    : '🤖 <span>' + (d.channel_title || 'Refer Bot') + '</span>';
+
+  // Meta
+  document.getElementById('p-meta').innerHTML =
+    '<span>📢 ' + (d.channel_username || '') + '</span>' +
+    '<span>📅 ' + d.created_at + '</span>' +
+    (isGA ? '<span>👥 ' + d.total_votes + ' votes</span>' : '<span>👥 ' + d.total_refs + ' users</span>');
+
+  // Status
+  const sp = document.getElementById('p-status');
+  if(isGA){
+    sp.className = 'sp sp-closed';
+    sp.innerHTML = '🔒 Giveaway Results';
+  } else {
+    sp.className = 'sp sp-live';
+    sp.innerHTML = '<div class="live-dot"></div> Refer Bot — Live';
+  }
+
+  // Channel numbers
+  const gain = d.member_gain || 0;
+  document.getElementById('ch-name').textContent = d.channel_title || 'Channel';
+  document.getElementById('ch-un').textContent = d.channel_username || '';
+  document.getElementById('ch-before').textContent = (d.member_start || 0).toLocaleString();
+  document.getElementById('ch-now').textContent = (d.member_current || 0).toLocaleString();
+  const gainEl = document.getElementById('ch-gain');
+  gainEl.textContent = (gain >= 0 ? '+' : '') + gain.toLocaleString();
+  gainEl.className = 'ch-num-val ' + (gain >= 0 ? 'pos' : 'neg');
+
+  // Quick stats
+  let qs;
+  if(isGA){
+    qs = [
+      {v: (d.total_votes||0).toLocaleString(), l:'Total Votes'},
+      {v: (d.votes_data||[]).length, l:'Participants'},
+      {v: pct((d.votes_data||[])[0]?.votes||0, d.total_votes)+'%', l:'Top Share'},
+      {v: (gain>=0?'+':'')+gain, l:'Member Gain'},
+    ];
+  } else {
+    qs = [
+      {v: (d.total_refs||0).toLocaleString(), l:'Total Users'},
+      {v: (d.top_referrers||[]).filter(u=>u.refs>0).length, l:'Referrers'},
+      {v: (d.top_referrers||[])[0]?.refs||0, l:'Top Refs'},
+      {v: (gain>=0?'+':'')+gain, l:'Member Gain'},
+    ];
+  }
+  document.getElementById('qs-row').innerHTML = qs.map(q =>
+    '<div class="qc"><div class="qc-val">' + q.v + '</div><div class="qc-lbl">' + q.l + '</div></div>'
+  ).join('');
+
+  // Growth chart
+  const snaps = d.snap_labels || [];
+  const ctx1 = document.getElementById('growthChart').getContext('2d');
+  if(snaps.length > 1){
+    const g = ctx1.createLinearGradient(0,0,0,180);
+    g.addColorStop(0,'rgba(16,185,129,.22)');g.addColorStop(1,'rgba(16,185,129,0)');
+    growthInst = new Chart(ctx1,{type:'line',
+      data:{labels:d.snap_labels,datasets:[{data:d.snap_counts,borderColor:'#10b981',
+        backgroundColor:g,fill:true,tension:.4,pointBackgroundColor:'#10b981',pointRadius:2,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{grid:{color:'rgba(28,28,46,.7)'},ticks:{color:'#7c7c9a',font:{size:9,family:'JetBrains Mono'},maxRotation:0}},
+                y:{grid:{color:'rgba(28,28,46,.7)'},ticks:{color:'#7c7c9a',font:{size:9,family:'JetBrains Mono'}}}}}});
+  } else {
+    document.getElementById('growthChart').parentElement.innerHTML =
+      '<p style="text-align:center;color:var(--muted);font-size:12px;padding:32px 16px">Snapshots taken every 30 min — check back soon</p>';
+  }
+
+  if(isGA) initGiveaway(d);
+  else initRefer(d);
+}
+
+function initGiveaway(d){
+  const votes = d.votes_data || [];
+  const total = d.total_votes || 0;
+
+  // Prizes
+  if(d.prizes && d.prizes.length){
+    document.getElementById('prizes-section').style.display = '';
+    const cls = ['gold','silver','bronze'];
+    const ico = ['🥇','🥈','🥉'];
+    document.getElementById('prizes-row').innerHTML = d.prizes.map((p,i) =>
+      '<div class="prize ' + (cls[i]||'') + '">' +
+      '<div class="prize-ico">' + (ico[i]||'🎁') + '</div>' +
+      '<div class="prize-lbl">' + (i===0?'1st':i===1?'2nd':i===2?'3rd':(i+1)+'th') + ' Prize</div>' +
+      '<div class="prize-txt">' + p + '</div></div>'
+    ).join('');
+  }
+
+  // Dist chart
+  if(votes.length){
+    document.getElementById('dist-panel').style.display = '';
+    document.getElementById('dist-title').textContent = '📊 Vote Distribution';
+    const top = votes.slice(0,10);
+    const ctx = document.getElementById('distChart').getContext('2d');
+    distInst = new Chart(ctx,{type:'bar',
+      data:{labels:top.map(v => v.name.length>12 ? v.name.slice(0,12)+'…' : v.name),
+            datasets:[{data:top.map(v=>v.votes),
+              backgroundColor:top.map((_,i)=>i===0?'rgba(245,158,11,.8)':i===1?'rgba(148,163,184,.6)':i===2?'rgba(180,83,9,.6)':'rgba(124,58,237,.5)'),
+              borderRadius:5,borderSkipped:false}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        animation:{duration:700,easing:'easeOutBounce'},
+        plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{color:'#7c7c9a',font:{size:9},maxRotation:30}},
+                y:{grid:{color:'rgba(28,28,46,.7)'},ticks:{color:'#7c7c9a',font:{size:9,family:'JetBrains Mono'}},beginAtZero:true}}}});
+  }
+
+  // Results
+  document.getElementById('results-panel').style.display = '';
+  document.getElementById('results-title').textContent = '🏆 Full Results';
+  document.getElementById('sort-row').innerHTML =
+    '<button class="sort-btn on" onclick="sortV(\'votes\',this)">Votes</button>' +
+    '<button class="sort-btn" onclick="sortV(\'alpha\',this)">A–Z</button>';
+  renderVotes([...votes], total);
+}
+
+function sortV(by, btn){
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  const v = by === 'votes'
+    ? [...(DATA.votes_data||[])].sort((a,b)=>b.votes-a.votes)
+    : [...(DATA.votes_data||[])].sort((a,b)=>a.name.localeCompare(b.name));
+  renderVotes(v, DATA.total_votes||0);
+}
+
+function renderVotes(votes, total){
+  const orig = DATA.votes_data || [];
+  const rkCls = i => i===0?'rk1':i===1?'rk2':i===2?'rk3':'rkn';
+  const rkLbl = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1);
+  const bCls  = i => i===0?'bar-gold':i===1?'bar-silver':i===2?'bar-bronze':'';
+  document.getElementById('results-list').innerHTML = votes.map(v => {
+    const r = orig.findIndex(x => x.name === v.name);
+    const p = pct(v.votes, total);
+    return '<div class="vote-row">' +
+      '<div class="vr-top">' +
+      '<div class="rank-badge ' + rkCls(r) + '">' + rkLbl(r) + '</div>' +
+      '<div class="vname">' + v.name + '</div>' +
+      '<div class="vpct">' + p + '%</div>' +
+      '<div class="vcnt">(' + v.votes + ')</div></div>' +
+      '<div class="bar"><div class="bar-f ' + bCls(r) + '" style="width:' + p + '%"></div></div>' +
+      '</div>';
+  }).join('');
+}
+
+function initRefer(d){
+  const users = d.top_referrers || [];
+  const maxR = users[0]?.refs || 1;
+  if(users.length){
+    document.getElementById('dist-panel').style.display = '';
+    document.getElementById('dist-title').textContent = '📊 Top Referrers';
+    const top = users.slice(0,10);
+    const ctx = document.getElementById('distChart').getContext('2d');
+    distInst = new Chart(ctx,{type:'bar',
+      data:{labels:top.map(u=>u.name.length>12?u.name.slice(0,12)+'…':u.name),
+            datasets:[{data:top.map(u=>u.refs),
+              backgroundColor:top.map((_,i)=>i===0?'rgba(245,158,11,.8)':i===1?'rgba(148,163,184,.6)':i===2?'rgba(180,83,9,.6)':'rgba(124,58,237,.5)'),
+              borderRadius:5,borderSkipped:false}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:700},
+        plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{color:'#7c7c9a',font:{size:9},maxRotation:30}},
+                y:{grid:{color:'rgba(28,28,46,.7)'},ticks:{color:'#7c7c9a',font:{size:9,family:'JetBrains Mono'}},beginAtZero:true}}}});
+  }
+  document.getElementById('results-panel').style.display = '';
+  document.getElementById('results-title').textContent = '👥 All Participants';
+  const all = d.refer_data || [];
+  document.getElementById('results-list').innerHTML = all.map((u,i) =>
+    '<div class="ref-row">' +
+    '<div class="ref-rank">' + (i===0?'👑':i===1?'🥈':i===2?'🥉':i+1) + '</div>' +
+    '<div class="ref-name">' + u.name + '</div>' +
+    '<div class="ref-cnt">' + u.refs + '</div>' +
+    '<div class="ref-bar"><div class="ref-bar-f" style="width:' + Math.round(u.refs/maxR*100) + '%"></div></div>' +
+    '</div>'
+  ).join('');
+}
+
+function shareTg(){
+  window.open('https://t.me/share/url?url=' + encodeURIComponent(location.href) + '&text=Check+out+these+results!');
+}
+function copyLink(){
+  navigator.clipboard.writeText(location.href).then(() => {
+    const b = document.getElementById('copy-btn');
+    b.textContent = '✅ Copied!';
+    setTimeout(() => b.textContent = '🔗 Copy Link', 2000);
+  }).catch(() => toast('❌ Could not copy', false));
+}
+async function deletePanel(){
+  if(!confirm('Delete this panel permanently?')) return;
+  const r = await fetch('/panel/' + TOKEN + '/delete', {method:'POST'});
+  const d = await r.json();
+  if(d.ok){
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#06060e;color:#7c7c9a;font-family:Outfit,sans-serif;text-align:center"><div><div style="font-size:48px;margin-bottom:16px">🗑</div><h2 style="color:#f0eeff;margin-bottom:8px">Panel Deleted</h2><p>This panel has been removed.</p></div></div>';
+  } else {
+    toast('❌ Could not delete', false);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

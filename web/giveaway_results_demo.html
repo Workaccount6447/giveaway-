@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Giveaway Results — Dominos Gift Card</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#06060e;--s1:#0d0d1a;--s2:#111120;
+  --border:#1c1c2e;--border2:#252538;
+  --accent:#7c3aed;--accent2:#a855f7;--accent3:#c084fc;
+  --text:#f0eeff;--muted:#7c7c9a;--muted2:#4a4a6a;
+  --gold:#f59e0b;--silver:#94a3b8;--bronze:#b45309;
+  --green:#10b981;--red:#f43f5e;
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;
+  min-height:100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%,rgba(124,58,237,.2) 0%,transparent 60%),
+    radial-gradient(ellipse 40% 40% at 100% 80%,rgba(168,85,247,.08) 0%,transparent 50%);
+}
+
+/* ── Header ── */
+.header{max-width:780px;margin:0 auto;padding:36px 16px 0;text-align:center}
+.brand{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.2);
+  border-radius:100px;padding:5px 14px;font-size:11px;font-weight:600;
+  color:var(--accent3);margin-bottom:18px;letter-spacing:.04em;
+}
+.brand-dot{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.giveaway-title{font-size:26px;font-weight:800;letter-spacing:-.03em;line-height:1.2;margin-bottom:6px}
+.giveaway-title span{background:linear-gradient(135deg,var(--accent3),#e879f9);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.giveaway-meta{display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;color:var(--muted);margin:12px 0 24px;flex-wrap:wrap}
+.meta-item{display:flex;align-items:center;gap:4px}
+
+/* ── Status ── */
+.status-banner{max-width:780px;margin:0 auto 18px;padding:0 16px}
+.status-pill{
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  border-radius:12px;padding:11px 18px;font-size:13px;font-weight:600;
+}
+.status-pill.live{background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.15);color:var(--green)}
+.status-pill.closed{background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.15);color:var(--accent3)}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;animation:livePulse 1.5s infinite}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+
+/* ── Wrap ── */
+.wrap{max-width:780px;margin:0 auto;padding:0 16px 56px}
+
+/* ── Prizes ── */
+.prizes-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.prize-card{
+  background:var(--s1);border:1px solid var(--border);border-radius:14px;
+  padding:16px 12px;text-align:center;transition:transform .2s,border-color .2s;
+}
+.prize-card:active{transform:translateY(-2px)}
+.prize-card.gold{border-color:rgba(245,158,11,.3);background:linear-gradient(135deg,rgba(245,158,11,.06),var(--s1))}
+.prize-card.silver{border-color:rgba(148,163,184,.2)}
+.prize-card.bronze{border-color:rgba(180,83,9,.2);background:linear-gradient(135deg,rgba(180,83,9,.05),var(--s1))}
+.prize-rank{font-size:24px;margin-bottom:6px}
+.prize-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:5px}
+.prize-text{font-size:11px;font-weight:600;line-height:1.4}
+.prize-card.gold .prize-text{color:var(--gold)}
+.prize-card.silver .prize-text{color:var(--silver)}
+.prize-card.bronze .prize-text{color:var(--bronze)}
+
+/* ── Quick stats ── */
+.quick-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
+.qs{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px 12px;text-align:center}
+.qs-val{font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace}
+.qs-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+
+/* ── Chart ── */
+.chart-section{background:var(--s1);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:14px}
+.results-header{padding:15px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.results-header h2{font-size:14px;font-weight:700}
+.chart-wrap{padding:16px;height:220px;position:relative}
+
+/* ── Results panel ── */
+.results-panel{background:var(--s1);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:16px}
+.sort-toggle{display:flex;gap:4px}
+.sort-btn{padding:5px 11px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;border:none;font-family:'Outfit',sans-serif;transition:all .15s}
+.sort-btn.active{background:rgba(124,58,237,.25);color:var(--accent3)}
+.sort-btn:not(.active){background:transparent;color:var(--muted);border:1px solid var(--border2)}
+
+/* ── Vote rows ── */
+.vote-row{padding:12px 16px;border-bottom:1px solid rgba(28,28,46,.5);transition:background .12s}
+.vote-row:last-child{border-bottom:none}
+.vote-row:active{background:rgba(124,58,237,.05)}
+.vote-row-top{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.rank-badge{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.rank-1{background:rgba(245,158,11,.15);color:var(--gold)}
+.rank-2{background:rgba(148,163,184,.1);color:var(--silver)}
+.rank-3{background:rgba(180,83,9,.1);color:var(--bronze)}
+.rank-n{background:rgba(28,28,46,.8);color:var(--muted2);font-size:10px}
+.voter-name{font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vote-pct{font-size:12px;font-weight:700;color:var(--accent3);font-family:'JetBrains Mono',monospace;margin-left:auto;white-space:nowrap}
+.vote-count{font-size:11px;color:var(--muted);margin-left:6px;white-space:nowrap}
+.bar-wrap{height:5px;background:rgba(28,28,46,.8);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .6s cubic-bezier(.34,1.2,.64,1)}
+.bar-fill.gold{background:linear-gradient(90deg,#d97706,var(--gold))}
+.bar-fill.silver{background:linear-gradient(90deg,#64748b,var(--silver))}
+.bar-fill.bronze{background:linear-gradient(90deg,#92400e,var(--bronze))}
+
+/* ── Share row ── */
+.share-row{display:flex;flex-direction:column;gap:10px;margin-bottom:8px}
+.share-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:14px 20px;border-radius:13px;font-size:14px;font-weight:600;
+  cursor:pointer;transition:all .15s;border:none;font-family:'Outfit',sans-serif;width:100%;
+}
+.share-tg{background:rgba(37,150,190,.15);border:1px solid rgba(37,150,190,.2);color:#40b3d8}
+.share-tg:active{background:rgba(37,150,190,.25)}
+.share-copy{background:var(--s2);border:1px solid var(--border2);color:var(--muted)}
+.share-copy:active{border-color:var(--accent2);color:var(--accent3)}
+
+/* ── Footer ── */
+.page-footer{text-align:center;padding:24px 16px 32px;font-size:12px;color:var(--muted2)}
+.page-footer a{color:var(--accent3);text-decoration:none}
+
+/* ── Toast (centered bottom for mobile) ── */
+.toast{
+  position:fixed;bottom:20px;left:50%;
+  transform:translateX(-50%) translateY(16px) scale(.95);
+  z-index:999;background:var(--s2);border:1px solid var(--border2);
+  border-radius:10px;padding:11px 18px;font-size:13px;font-weight:500;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);opacity:0;white-space:nowrap;
+  transition:all .22s cubic-bezier(.34,1.56,.64,1);pointer-events:none;
+}
+.toast.show{transform:translateX(-50%) translateY(0) scale(1);opacity:1}
+.toast.ok{border-color:rgba(16,185,129,.28);color:var(--green)}
+
+/* ── Desktop upgrades ── */
+@media(min-width:500px){
+  .header{padding:44px 24px 0}
+  .wrap{padding:0 24px 60px}
+  .giveaway-title{font-size:30px}
+  .quick-stats{grid-template-columns:repeat(4,1fr)}
+  .share-row{flex-direction:row}
+  .share-btn{width:auto;flex:1}
+  .chart-wrap{height:260px}
+  .prize-text{font-size:12px}
+}
+@media(min-width:700px){
+  .giveaway-title{font-size:32px}
+  .vote-row{padding:14px 24px}
+  .results-header{padding:18px 24px}
+  .prize-card:hover{transform:translateY(-3px)}
+  .vote-row:hover{background:rgba(124,58,237,.04)}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand"><span class="brand-dot"></span>Powered by RoyalityBots</div>
+  <div class="giveaway-title">🗳 <span>Dominos Gift Card</span> Giveaway</div>
+  <div class="giveaway-meta">
+    <span class="meta-item">📢 @foodlovers</span>
+    <span class="meta-item">📅 April 19, 2026</span>
+    <span class="meta-item">🆔 A1B2C3D4</span>
+  </div>
+</div>
+
+<div class="status-banner">
+  <div class="status-pill closed">🔒 Poll Closed &nbsp;·&nbsp; Final Results</div>
+</div>
+
+<div class="wrap">
+
+  <div class="prizes-row">
+    <div class="prize-card gold"><div class="prize-rank">🥇</div><div class="prize-label">1st Prize</div><div class="prize-text">₹100 Dominos Gift Card</div></div>
+    <div class="prize-card silver"><div class="prize-rank">🥈</div><div class="prize-label">2nd Prize</div><div class="prize-text">Myntra ₹100 Coupon</div></div>
+    <div class="prize-card bronze"><div class="prize-rank">🥉</div><div class="prize-label">3rd Prize</div><div class="prize-text">Amazon ₹50 Voucher</div></div>
+  </div>
+
+  <div class="quick-stats">
+    <div class="qs"><div class="qs-val">218</div><div class="qs-label">Total Votes</div></div>
+    <div class="qs"><div class="qs-val">23</div><div class="qs-label">Participants</div></div>
+    <div class="qs"><div class="qs-val">21%</div><div class="qs-label">Top Share</div></div>
+    <div class="qs"><div class="qs-val">9</div><div class="qs-label">Avg Votes</div></div>
+  </div>
+
+  <div class="chart-section">
+    <div class="results-header"><h2>📊 Vote Distribution</h2></div>
+    <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+  </div>
+
+  <div class="results-panel">
+    <div class="results-header">
+      <h2>🏆 Full Results</h2>
+      <div class="sort-toggle">
+        <button class="sort-btn active" onclick="sortResults('votes',this)">By Votes</button>
+        <button class="sort-btn" onclick="sortResults('alpha',this)">A–Z</button>
+      </div>
+    </div>
+    <div id="results-list"></div>
+  </div>
+
+  <div class="share-row">
+    <button class="share-btn share-tg" onclick="shareTg()">✈️ Share on Telegram</button>
+    <button class="share-btn share-copy" id="copy-btn" onclick="copyLink()">🔗 Copy Link</button>
+  </div>
+
+</div>
+
+<div class="page-footer">
+  <div>Giveaway hosted via <a href="#">@RoyalityBots</a></div>
+  <div style="margin-top:6px">Create your own giveaway — start the bot today</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA=[
+  {name:"Emon",votes:46},{name:"Royality",votes:44},{name:"Lawrence Bishnoi 🇮🇳",votes:42},
+  {name:"Kranthi C",votes:27},{name:"Chiro",votes:11},{name:"Dev Goyal",votes:8},
+  {name:"Sumit",votes:5},{name:"Akarsh 👁",votes:5},{name:"Brespoti Mondal",votes:5},
+  {name:"ARGHYA",votes:5},{name:"Razz Agrawal",votes:4},{name:"Jeet",votes:4},
+  {name:"Natkhat",votes:4},{name:"PLAY IT",votes:2},{name:"Noteyourtype",votes:2},
+  {name:"🐧",votes:2},{name:"Ayush",votes:1},{name:"Dost hu",votes:1},
+  {name:"G",votes:1},{name:"Klaus",votes:1},{name:"Abhiinav",votes:1},
+  {name:"S B",votes:0},{name:"ASIM PAL",votes:0}
+];
+const TOTAL=DATA.reduce((s,d)=>s+d.votes,0);
+let sorted=[...DATA],barInst;
+
+function toast(m,ok=true){
+  const e=document.getElementById('toast');
+  e.textContent=m;e.className='toast show'+(ok?' ok':'');
+  setTimeout(()=>e.className='toast',3000);
+}
+function pct(v){return TOTAL>0?Math.round(v/TOTAL*100):0}
+function rkCls(i){return i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-n'}
+function rkLbl(i){return i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1)}
+function bCls(i){return i===0?'gold':i===1?'silver':i===2?'bronze':''}
+
+function sortResults(by,btn){
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  sorted=by==='votes'?[...DATA].sort((a,b)=>b.votes-a.votes):[...DATA].sort((a,b)=>a.name.localeCompare(b.name));
+  renderList();
+}
+
+function renderList(){
+  document.getElementById('results-list').innerHTML=sorted.map(d=>{
+    const p=pct(d.votes),r=DATA.findIndex(x=>x.name===d.name);
+    return`<div class="vote-row">
+      <div class="vote-row-top">
+        <div class="rank-badge ${rkCls(r)}">${rkLbl(r)}</div>
+        <div class="voter-name">${d.name}</div>
+        <div class="vote-pct">${p}%</div>
+        <div class="vote-count">(${d.votes})</div>
+      </div>
+      <div class="bar-wrap"><div class="bar-fill ${bCls(r)}" style="width:${p}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderChart(){
+  const top=[...DATA].sort((a,b)=>b.votes-a.votes).slice(0,10);
+  const ctx=document.getElementById('barChart').getContext('2d');
+  if(barInst)barInst.destroy();
+  barInst=new Chart(ctx,{type:'bar',
+    data:{
+      labels:top.map(d=>d.name.length>10?d.name.slice(0,10)+'…':d.name),
+      datasets:[{data:top.map(d=>d.votes),
+        backgroundColor:top.map((_,i)=>i===0?'rgba(245,158,11,.8)':i===1?'rgba(148,163,184,.6)':i===2?'rgba(180,83,9,.6)':'rgba(124,58,237,.5)'),
+        borderRadius:5,borderSkipped:false}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      animation:{duration:800,easing:'easeOutBounce'},
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#7c7c9a',font:{size:9,family:'Outfit'},maxRotation:30}},
+        y:{grid:{color:'rgba(28,28,46,.8)'},ticks:{color:'#7c7c9a',font:{size:9,family:'JetBrains Mono'}},beginAtZero:true}
+      }}});
+}
+
+function shareTg(){
+  window.open('https://t.me/share/url?url='+encodeURIComponent(location.href)+'&text=Check+out+these+giveaway+results!');
+}
+function copyLink(){
+  navigator.clipboard.writeText(location.href).then(()=>{
+    const b=document.getElementById('copy-btn');
+    b.textContent='✅ Copied!';
+    setTimeout(()=>b.textContent='🔗 Copy Link',2000);
+  }).catch(()=>toast('Could not copy',false));
+}
+
+renderList();
+renderChart();
+</script>
+</body>
+</html>

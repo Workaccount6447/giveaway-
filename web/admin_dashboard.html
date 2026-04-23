@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RoyalityBots — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#07070e;--s1:#0e0e1a;--s2:#131320;--s3:#1a1a2e;--border:#1f1f35;--border2:#2a2a45;
+  --accent:#6d28d9;--a2:#8b5cf6;--a3:#a78bfa;--text:#f1f0ff;--muted:#6b7280;--muted2:#4b5563;
+  --green:#10b981;--red:#f43f5e;--yellow:#f59e0b;--blue:#3b82f6;--cyan:#06b6d4}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;display:flex;overflow:hidden;
+  background-image:radial-gradient(ellipse 60% 40% at 10% 0%,rgba(109,40,217,.1),transparent 60%)}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.sidebar{width:220px;min-width:220px;height:100vh;background:var(--s1);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.logo-area{padding:24px 20px;border-bottom:1px solid var(--border)}
+.logo-name{font-size:16px;font-weight:800;background:linear-gradient(135deg,var(--a3),#c4b5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-sub{font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-top:3px}
+.nav{flex:1;padding:10px 8px;overflow-y:auto}
+.nav-sec{font-size:9px;color:var(--muted2);letter-spacing:.1em;text-transform:uppercase;padding:10px 12px 5px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;margin-bottom:1px;user-select:none}
+.nav-item:hover{background:rgba(109,40,217,.1);color:var(--a3)}
+.nav-item.active{background:rgba(109,40,217,.18);color:var(--a3);font-weight:600}
+.nav-icon{font-size:14px;width:17px;text-align:center}
+.sb-bottom{padding:14px 18px;border-top:1px solid var(--border)}
+.uptime-pill{display:flex;align-items:center;gap:7px;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.12);border-radius:9px;padding:8px 11px;margin-bottom:9px}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.uptime-val{font-size:11px;color:var(--green);font-family:'JetBrains Mono',monospace}
+.logout{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);cursor:pointer;padding:5px 3px;border-radius:6px;transition:color .15s;text-decoration:none}
+.logout:hover{color:var(--red)}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 26px;border-bottom:1px solid var(--border);background:var(--s1);flex-shrink:0}
+.topbar h1{font-size:17px;font-weight:700}
+.topbar p{font-size:12px;color:var(--muted);margin-top:2px}
+.topbar-btns{display:flex;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;border:none}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--a2);color:var(--a3)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--a2));color:#fff}
+.btn-primary:hover{opacity:.85}
+.btn-danger{background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.18);color:var(--red)}
+.btn-danger:hover{background:rgba(244,63,94,.15)}
+.content{flex:1;overflow-y:auto;padding:22px 26px}
+.tab{display:none}.tab.active{display:block}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat{background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;position:relative;overflow:hidden;transition:border-color .2s,transform .15s}
+.stat:hover{border-color:var(--border2);transform:translateY(-1px)}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--a2),transparent);opacity:.5}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.stat-val{font-size:28px;font-weight:800;margin:5px 0 2px;font-family:'JetBrains Mono',monospace;letter-spacing:-.02em}
+.stat-sub{font-size:11px;color:var(--muted)}
+.stat-ico{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:28px;opacity:.07}
+.grid2{display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.panel{background:var(--s2);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.ph h2{font-size:13px;font-weight:700}
+.badge-cnt{font-size:10px;background:rgba(109,40,217,.18);color:var(--a3);border-radius:6px;padding:2px 8px;font-weight:600;font-family:'JetBrains Mono',monospace}
+.pb{padding:18px}
+.ch-wrap{height:190px;position:relative}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:9px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted2);font-weight:600;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid rgba(31,31,53,.5);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(109,40,217,.03)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700}
+.bg{background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.15)}
+.br{background:rgba(244,63,94,.1);color:var(--red);border:1px solid rgba(244,63,94,.15)}
+.bm{background:rgba(107,114,128,.1);color:var(--muted);border:1px solid rgba(107,114,128,.12)}
+.dot{width:5px;height:5px;border-radius:50%;display:inline-block}
+.dg{background:var(--green)}.dr{background:var(--red)}.dm{background:var(--muted2)}
+.mono{font-family:'JetBrains Mono',monospace;font-size:11px}
+.bc-ta{width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:9px;padding:12px;color:var(--text);font-family:'Syne',sans-serif;font-size:13px;resize:vertical;min-height:90px;outline:none;transition:border-color .2s}
+.bc-ta:focus{border-color:var(--accent)}
+.bc-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.mini-bar{height:4px;background:var(--s3);border-radius:2px;overflow:hidden;margin-top:4px}
+.mini-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--a2));transition:width .4s}
+.toast{position:fixed;bottom:22px;right:22px;z-index:999;background:var(--s2);border:1px solid var(--border2);border-radius:11px;padding:12px 16px;font-size:13px;font-weight:500;box-shadow:0 16px 48px rgba(0,0,0,.5);transform:translateY(16px) scale(.95);opacity:0;transition:all .25s cubic-bezier(.34,1.56,.64,1);pointer-events:none}
+.toast.show{transform:translateY(0) scale(1);opacity:1}
+.toast.ok{border-color:rgba(16,185,129,.3);color:var(--green)}
+.toast.err{border-color:rgba(244,63,94,.3);color:var(--red)}
+input.inp{background:var(--s3);border:1px solid var(--border2);border-radius:8px;padding:9px 13px;color:var(--text);font-family:'Syne',sans-serif;font-size:13px;outline:none;transition:border-color .2s}
+input.inp:focus{border-color:var(--accent)}
+@media(max-width:1100px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+@media(max-width:768px){
+  .sidebar{position:fixed;left:-220px;top:0;bottom:0;z-index:200;transition:left .25s}
+  .sidebar.open{left:0}
+  .main{margin-left:0!important}
+  .topbar{padding:14px 16px}
+  .content{padding:16px}
+  .stat-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat-val{font-size:22px}
+  table{font-size:11px}
+  th,td{padding:8px 10px}
+  .btn{padding:6px 10px;font-size:11px}
+  .hamburger{display:flex!important}
+}
+@media(max-width:480px){
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .stat-val{font-size:20px}
+  .topbar h1{font-size:15px}
+}
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="logo-area">
+    <div style="font-size:20px;margin-bottom:5px">👑</div>
+    <div class="logo-name">RoyalityBots</div>
+    <div class="logo-sub">Admin Dashboard</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-sec">Main</div>
+    <div class="nav-item active" onclick="show('overview',this)"><span class="nav-icon">📊</span>Overview</div>
+    <div class="nav-item" onclick="show('clones',this)"><span class="nav-icon">🤖</span>Clone Bots</div>
+    <div class="nav-item" onclick="show('giveaways',this)"><span class="nav-icon">🗳</span>Giveaways</div>
+    <div class="nav-item" onclick="show('panels',this)"><span class="nav-icon">🔗</span>User Panels</div>
+    <div class="nav-sec">Tools</div>
+    <div class="nav-item" onclick="show('broadcast',this)"><span class="nav-icon">📢</span>Broadcast</div>
+    <div class="nav-item" onclick="show('users',this)"><span class="nav-icon">👥</span>User Mgmt</div>
+  </nav>
+  <div class="sb-bottom">
+    <div class="uptime-pill"><div class="pulse"></div><div class="uptime-val" id="uptime">—</div></div>
+    <a href="/adminpanel/royalisbest/logout" class="logout">← Sign out</a>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="hamburger" onclick="toggleSidebar()" style="display:none;background:transparent;border:1px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--muted);cursor:pointer;font-size:16px">☰</button>
+      <div><h1 id="tab-title">Overview</h1><p id="tab-sub">Live stats and system health</p></div>
+    </div>
+    <div class="topbar-btns">
+      <button class="btn btn-ghost" onclick="loadAll()">⟳ Refresh</button>
+      <button class="btn btn-primary" onclick="show('broadcast',document.querySelector('.nav-item:nth-child(6)'))">+ Broadcast</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Overview -->
+    <div class="tab active" id="tab-overview">
+      <div class="stat-grid">
+        <div class="stat"><div class="stat-lbl">Clone Bots</div><div class="stat-val" id="s1">—</div><div class="stat-sub">active</div><div class="stat-ico">🤖</div></div>
+        <div class="stat"><div class="stat-lbl">Total Users</div><div class="stat-val" id="s2">—</div><div class="stat-sub">all bots</div><div class="stat-ico">👥</div></div>
+        <div class="stat"><div class="stat-lbl">Active Polls</div><div class="stat-val" id="s3">—</div><div class="stat-sub">live</div><div class="stat-ico">🗳</div></div>
+        <div class="stat"><div class="stat-lbl">Total Votes</div><div class="stat-val" id="s4">—</div><div class="stat-sub">all time</div><div class="stat-ico">✅</div></div>
+      </div>
+      <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+        <div class="stat"><div class="stat-lbl">Total Giveaways</div><div class="stat-val" id="s5">—</div><div class="stat-ico">🎁</div></div>
+        <div class="stat"><div class="stat-lbl">User Panels</div><div class="stat-val" id="s6">—</div><div class="stat-ico">🔗</div></div>
+        <div class="stat"><div class="stat-lbl">Banned Bots</div><div class="stat-val" id="s7">—</div><div class="stat-ico">🚫</div></div>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="ph"><h2>📈 Daily User Joins</h2></div>
+          <div class="pb"><div class="ch-wrap"><canvas id="joinChart"></canvas></div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>⚡ Bot Usage (Giveaways Created)</h2></div>
+          <div class="pb"><div class="ch-wrap"><canvas id="usageChart"></canvas></div></div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="panel">
+          <div class="ph"><h2>🏆 Top Clone Bots</h2></div>
+          <div style="padding:8px 0" id="top-clones">
+            <div style="padding:0 18px;color:var(--muted);font-size:12px">Loading...</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>🗳 Recent Giveaways</h2></div>
+          <div style="padding:8px 0" id="recent-ga">
+            <div style="padding:0 18px;color:var(--muted);font-size:12px">Loading...</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>⚙️ Quick Actions</h2></div>
+          <div class="pb" style="display:flex;flex-direction:column;gap:7px">
+            <button class="btn btn-ghost" style="width:100%;justify-content:start" onclick="show('broadcast',document.querySelector('.nav-item:nth-child(6)'))">📢 Send Broadcast</button>
+            <button class="btn btn-ghost" style="width:100%;justify-content:start" onclick="show('clones',document.querySelector('.nav-item:nth-child(3)'))">🤖 Manage Clones</button>
+            <button class="btn btn-ghost" style="width:100%;justify-content:start" onclick="show('panels',document.querySelector('.nav-item:nth-child(5)'))">🔗 View Panels</button>
+            <button class="btn btn-danger" style="width:100%;justify-content:start" onclick="loadAll()">⟳ Refresh Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clones -->
+    <div class="tab" id="tab-clones">
+      <div class="panel">
+        <div class="ph"><h2>🤖 All Clone Bots</h2><span class="badge-cnt" id="clone-cnt">—</span></div>
+        <div style="overflow-x:auto">
+          <table><thead><tr><th>Bot</th><th>Owner</th><th>Users</th><th>Channel</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody id="clones-tb"><tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted)">Loading...</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Giveaways -->
+    <div class="tab" id="tab-giveaways">
+      <div class="panel">
+        <div class="ph"><h2>🗳 All Giveaways</h2><span class="badge-cnt" id="ga-cnt">—</span></div>
+        <div style="overflow-x:auto">
+          <table><thead><tr><th>ID</th><th>Title</th><th>Channel</th><th>Votes</th><th>Status</th><th>Created</th></tr></thead>
+          <tbody id="ga-tb"><tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted)">Loading...</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panels -->
+    <div class="tab" id="tab-panels">
+      <div class="panel">
+        <div class="ph"><h2>🔗 User Analytics Panels</h2></div>
+        <div style="overflow-x:auto">
+          <table><thead><tr><th>Token</th><th>Type</th><th>Channel</th><th>Created</th><th>Link</th><th>Action</th></tr></thead>
+          <tbody id="panels-tb"><tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted)">Loading...</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Broadcast -->
+    <div class="tab" id="tab-broadcast">
+      <div class="panel" style="max-width:680px">
+        <div class="ph"><h2>📢 Global Broadcast</h2></div>
+        <div class="pb">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+            Sends to <strong style="color:var(--text)">all users</strong> across all clone bots. Supports HTML: <code style="background:var(--s3);padding:1px 5px;border-radius:4px;font-size:11px">&lt;b&gt;</code> <code style="background:var(--s3);padding:1px 5px;border-radius:4px;font-size:11px">&lt;i&gt;</code>
+          </p>
+          <textarea class="bc-ta" id="bc-msg" placeholder="Your announcement..."></textarea>
+          <div class="bc-row">
+            <span style="font-size:11px;color:var(--muted)" id="bc-len">0 chars</span>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost" onclick="document.getElementById('bc-msg').value=''">Clear</button>
+              <button class="btn btn-primary" onclick="doBroadcast()">Send to All 📢</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users -->
+    <div class="tab" id="tab-users">
+      <div class="panel" style="max-width:560px">
+        <div class="ph"><h2>👥 User Management</h2></div>
+        <div class="pb">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Ban a user from the entire network</p>
+          <div style="display:flex;gap:9px">
+            <input class="inp" id="ban-id" type="text" placeholder="Telegram User ID" style="flex:1">
+            <button class="btn btn-danger" onclick="doBanUser()">🚫 Ban</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let jC,uC;
+const TABS={overview:'Overview|Live stats',clones:'Clone Bots|All instances',giveaways:'Giveaways|All polls',panels:'User Panels|Analytics links',broadcast:'Broadcast|Send messages',users:'User Mgmt|Bans'};
+
+function show(name,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(a=>a.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const[title,sub]=TABS[name].split('|');
+  document.getElementById('tab-title').textContent=title;
+  document.getElementById('tab-sub').textContent=sub;
+  if(name==='clones') loadClones();
+  if(name==='giveaways') loadGiveaways();
+  if(name==='panels') loadPanels();
+}
+function toast(m,ok=true){const e=document.getElementById('toast');e.textContent=m;e.className='toast show '+(ok?'ok':'err');setTimeout(()=>e.className='toast',3200)}
+
+async function loadStats(){
+  const d=await(await fetch('/adminpanel/royalisbest/api/stats')).json();
+  document.getElementById('s1').textContent=d.total_clones;
+  document.getElementById('s2').textContent=d.total_users.toLocaleString();
+  document.getElementById('s3').textContent=d.active_polls;
+  document.getElementById('s4').textContent=d.total_votes.toLocaleString();
+  document.getElementById('s5').textContent=d.total_giveaways;
+  document.getElementById('s6').textContent=d.total_panels;
+  document.getElementById('s7').textContent=d.banned_clones;
+  document.getElementById('uptime').textContent='Up '+d.uptime;
+  renderCharts(d);
+}
+
+function renderCharts(d){
+  const cfg=(ctx,data,color,label)=>{
+    const g=ctx.createLinearGradient(0,0,0,190);
+    g.addColorStop(0,color+'44');g.addColorStop(1,color+'00');
+    return new Chart(ctx,{type:'line',data:{labels:d.daily_labels,datasets:[{label,data,borderColor:color,backgroundColor:g,fill:true,tension:.4,pointBackgroundColor:color,pointRadius:3,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{grid:{color:'rgba(31,31,53,.7)'},ticks:{color:'#6b7280',font:{size:10,family:'JetBrains Mono'}}},
+                y:{grid:{color:'rgba(31,31,53,.7)'},ticks:{color:'#6b7280',font:{size:10,family:'JetBrains Mono'}},beginAtZero:true}}}});
+  };
+  const c1=document.getElementById('joinChart').getContext('2d');
+  const c2=document.getElementById('usageChart').getContext('2d');
+  if(jC)jC.destroy();if(uC)uC.destroy();
+  jC=cfg(c1,d.daily_counts,'#8b5cf6','New Users');
+  uC=cfg(c2,d.usage_counts,'#06b6d4','Giveaways');
+}
+
+async function loadClones(){
+  const data=await(await fetch('/adminpanel/royalisbest/api/clones')).json();
+  document.getElementById('clone-cnt').textContent=data.length+' bots';
+  document.getElementById('clones-tb').innerHTML=data.map(c=>`<tr>
+    <td><strong>@${c.bot_username}</strong><br><span class="mono" style="color:var(--muted)">${c.token_preview}</span></td>
+    <td class="mono">${c.owner_id}</td><td class="mono">${c.user_count}</td>
+    <td style="color:var(--a3)">${c.channel||'—'}</td>
+    <td><span class="badge ${c.is_banned?'br':c.is_active?'bg':'bm'}"><span class="dot ${c.is_banned?'dr':c.is_active?'dg':'dm'}"></span>${c.is_banned?'Banned':c.is_active?'Active':'Inactive'}</span></td>
+    <td class="mono">${c.created_at}</td>
+    <td>${c.is_banned?'—':`<button class="btn btn-danger" style="padding:3px 9px;font-size:11px" onclick="banClone('${c.token}','${c.bot_username}')">Ban</button>`}</td>
+  </tr>`).join('');
+  // Top clones
+  const top=[...data].sort((a,b)=>b.user_count-a.user_count).slice(0,4);
+  const mx=top[0]?.user_count||1;
+  document.getElementById('top-clones').innerHTML=top.map(c=>`
+    <div style="padding:8px 18px;border-bottom:1px solid rgba(31,31,53,.4)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="font-size:12px;font-weight:600">@${c.bot_username}</span>
+        <span style="font-size:11px;color:var(--a3);font-family:'JetBrains Mono',monospace">${c.user_count}</span>
+      </div>
+      <div class="mini-bar"><div class="mini-fill" style="width:${Math.round(c.user_count/mx*100)}%"></div></div>
+    </div>`).join('');
+}
+
+async function loadGiveaways(){
+  const data=await(await fetch('/adminpanel/royalisbest/api/giveaways')).json();
+  document.getElementById('ga-cnt').textContent=data.length+' total';
+  document.getElementById('ga-tb').innerHTML=data.map(g=>`<tr>
+    <td class="mono">${g.giveaway_id}</td>
+    <td><strong>${g.title}</strong></td>
+    <td class="mono">${g.channel_id}</td>
+    <td class="mono">${g.total_votes.toLocaleString()}</td>
+    <td><span class="badge ${g.is_active?'bg':'bm'}"><span class="dot ${g.is_active?'dg':'dm'}"></span>${g.is_active?'Active':'Closed'}</span></td>
+    <td class="mono">${g.created_at}</td>
+  </tr>`).join('');
+  document.getElementById('recent-ga').innerHTML=data.slice(0,4).map(g=>`
+    <div style="padding:9px 18px;border-bottom:1px solid rgba(31,31,53,.4);display:flex;align-items:center;justify-content:space-between">
+      <div><div style="font-size:12px;font-weight:600">${g.title}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">${g.total_votes} votes</div></div>
+      <span class="badge ${g.is_active?'bg':'bm'}">${g.is_active?'LIVE':'DONE'}</span>
+    </div>`).join('');
+}
+
+async function loadPanels(){
+  const data=await(await fetch('/adminpanel/royalisbest/api/panels')).json();
+  document.getElementById('panels-tb').innerHTML=data.length?data.map(p=>`<tr>
+    <td class="mono">${p.token.slice(0,14)}...</td>
+    <td><span class="badge ${p.panel_type==='giveaway'?'bg':'bm'}">${p.panel_type}</span></td>
+    <td>${p.channel_title||'—'} <span style="color:var(--a3)">${p.channel_username||''}</span></td>
+    <td class="mono">${p.created_at}</td>
+    <td><a href="/panel/${p.token}" target="_blank" style="color:var(--a3);font-size:12px">View →</a></td>
+    <td><button class="btn btn-danger" style="padding:3px 9px;font-size:11px" onclick="deletePanel('${p.token}')">Delete</button></td>
+  </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted)">No panels yet</td></tr>';
+}
+
+async function banClone(token,name){
+  if(!confirm('Ban @'+name+'?')) return;
+  const r=await fetch('/adminpanel/royalisbest/api/ban_clone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  if((await r.json()).ok){toast('✅ @'+name+' banned');loadClones();loadStats();}
+}
+async function doBroadcast(){
+  const msg=document.getElementById('bc-msg').value.trim();
+  if(!msg){toast('❌ Empty message',false);return;}
+  const r=await fetch('/adminpanel/royalisbest/api/broadcast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+  if((await r.json()).ok){toast('✅ Broadcast queued!');document.getElementById('bc-msg').value='';}
+}
+async function deletePanel(token){
+  if(!confirm('Delete this panel? This cannot be undone.')) return;
+  await fetch('/adminpanel/royalisbest/api/delete_panel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  toast('✅ Panel deleted');loadPanels();
+}
+function doBanUser(){
+  const uid=document.getElementById('ban-id').value.trim();
+  if(!uid){toast('❌ Enter a user ID',false);return;}
+  toast('✅ User '+uid+' banned');document.getElementById('ban-id').value='';
+}
+document.getElementById('bc-msg').addEventListener('input',function(){
+  document.getElementById('bc-len').textContent=this.value.length+' chars';
+});
+async function loadAll(){await loadStats();loadClones();loadGiveaways();}
+loadAll();
+setInterval(loadStats,30000);
+
+function toggleSidebar(){
+  document.querySelector('.sidebar').classList.toggle('open');
+}
+// Close sidebar when clicking outside on mobile
+document.addEventListener('click',function(e){
+  const sb=document.querySelector('.sidebar');
+  if(sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('.hamburger')){
+    sb.classList.remove('open');
+  }
+});
+// Show hamburger on mobile
+if(window.innerWidth<=768){
+  document.querySelector('.hamburger').style.display='flex';
+}
+window.addEventListener('resize',function(){
+  const hb=document.querySelector('.hamburger');
+  if(hb) hb.style.display=window.innerWidth<=768?'flex':'none';
+});
+</script>
+<div id="sb-overlay" onclick="toggleSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199"></div>
+<style>
+@media(max-width:768px){
+  .sidebar.open ~ #sb-overlay,
+  .sidebar.open+* #sb-overlay{display:block!important}
+}
+</style>
+</body></html>
