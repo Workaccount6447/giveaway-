@@ -3,14 +3,81 @@ Web server — FastAPI
 Admin panel: /adminpanel/royalisbest/a?b3c
 User panel:  /panel/<token>
 """
-import time, secrets, hashlib, json
+import time, secrets, hashlib, json, logging, asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-import asyncio
 
-app = FastAPI(docs_url=None, redoc_url=None)
+logger = logging.getLogger(__name__)
+
+# ── Bot task holder ───────────────────────────────────────────
+_bot_task: asyncio.Task = None
+
+
+async def _start_bot():
+    """Start the Telegram bot. Called from lifespan — works even when Render
+    launches web.app:app directly instead of main.py."""
+    try:
+        import utils.clone_manager as clone_manager_module
+        from aiogram import Bot, Dispatcher
+        from aiogram.fsm.storage.memory import MemoryStorage
+        from config.settings import settings
+        from utils.db import init_db
+        from utils.clone_manager import get_clone_manager
+        from web.broadcaster import set_main_bot
+        from handlers import start, giveaway, referral, admin, clone_bot
+
+        logger.info("🔄 Initialising database...")
+        await init_db()
+        logger.info("✅ Database ready")
+
+        storage = MemoryStorage()
+        bot = Bot(token=settings.BOT_TOKEN)
+        dp = Dispatcher(storage=storage)
+
+        me = await bot.get_me()
+        clone_manager_module.MAIN_BOT_USERNAME = me.username
+        logger.info(f"🤖 Bot: @{me.username}")
+
+        set_main_bot(bot)
+
+        dp.include_router(start.router)
+        dp.include_router(giveaway.router)
+        dp.include_router(referral.router)
+        dp.include_router(admin.router)
+        dp.include_router(clone_bot.router)
+
+        clone_manager = get_clone_manager()
+        asyncio.create_task(clone_manager.start_all_clones())
+
+        from utils.snapshot_scheduler import set_bot as set_snap_bot, snapshot_loop
+        set_snap_bot(bot)
+        asyncio.create_task(snapshot_loop())
+
+        from utils.keep_alive import set_domain, keep_alive_loop
+        set_domain(settings.WEB_DOMAIN)
+        asyncio.create_task(keep_alive_loop())
+
+        logger.info("🚀 Bot polling started!")
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query", "chat_member"])
+
+    except Exception as e:
+        logger.error(f"❌ Bot startup failed: {e}", exc_info=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Starts bot on FastAPI startup regardless of how uvicorn is invoked."""
+    global _bot_task
+    _bot_task = asyncio.create_task(_start_bot())
+    yield
+    if _bot_task and not _bot_task.done():
+        _bot_task.cancel()
+
+
+app = FastAPI(docs_url=None, redoc_url=None, lifespan=lifespan)
 
 _sessions: dict = {}
 _start_time = time.time()
