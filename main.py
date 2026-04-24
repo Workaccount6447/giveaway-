@@ -16,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ─── Poll restore onrestart ──────────────────────────────────
+# ─── Poll restore on restart ──────────────────────────────────
 
 async def _restore_active_polls(bot: Bot):
     from utils.db import get_db, is_mongo, get_sqlite_path
@@ -72,55 +72,64 @@ async def _restore_active_polls(bot: Bot):
         logger.error(f"Poll restore error: {e}")
 
 
+# ─── Bot startup (runs after DB is ready) ─────────────────────
+
+async def _start_bot():
+    try:
+        storage = MemoryStorage()
+        bot = Bot(token=settings.BOT_TOKEN)
+        dp  = Dispatcher(storage=storage)
+
+        me = await bot.get_me()
+        clone_manager_module.MAIN_BOT_USERNAME = me.username
+        logger.info(f"🤖 Main bot: @{me.username}")
+
+        from web.broadcaster import set_main_bot
+        set_main_bot(bot)
+
+        dp.include_router(start.router)
+        dp.include_router(giveaway.router)
+        dp.include_router(referral.router)
+        dp.include_router(admin.router)
+        dp.include_router(clone_bot.router)
+
+        clone_manager = get_clone_manager()
+        asyncio.create_task(clone_manager.start_all_clones())
+        asyncio.create_task(_restore_active_polls(bot))
+
+        from utils.snapshot_scheduler import set_bot as set_snap_bot, snapshot_loop
+        set_snap_bot(bot)
+        asyncio.create_task(snapshot_loop())
+
+        from utils.keep_alive import set_domain, keep_alive_loop
+        set_domain(settings.WEB_DOMAIN)
+        asyncio.create_task(keep_alive_loop())
+
+        logger.info("🚀 Bot polling started!")
+        await dp.start_polling(
+            bot,
+            allowed_updates=["message", "callback_query", "chat_member"]
+        )
+    except Exception as e:
+        logger.error(f"❌ Bot failed: {e}", exc_info=True)
+
+
+# ─── DB init then launch bot (background task) ────────────────
+
+async def _init_then_start_bot():
+    """Runs in background so uvicorn can bind port first."""
+    try:
+        logger.info("🔄 Initialising database...")
+        await init_db()
+        logger.info("✅ Database ready — starting bot")
+        await _start_bot()
+    except Exception as e:
+        logger.error(f"❌ Startup failed: {e}", exc_info=True)
+
+
 # ─── Main ─────────────────────────────────────────────────────
 
 async def main():
-    # Init DB
-    await init_db()
-
-    # Bot + dispatcher
-    storage = MemoryStorage()
-    bot = Bot(token=settings.BOT_TOKEN)
-    dp  = Dispatcher(storage=storage)
-
-    # Set main bot username
-    me = await bot.get_me()
-    clone_manager_module.MAIN_BOT_USERNAME = me.username
-    logger.info(f"🤖 Main bot: @{me.username}")
-
-    # Broadcaster reference
-    from web.broadcaster import set_main_bot
-    set_main_bot(bot)
-
-    # Register all routers
-    dp.include_router(start.router)
-    dp.include_router(giveaway.router)
-    dp.include_router(referral.router)
-    dp.include_router(admin.router)
-    dp.include_router(clone_bot.router)
-
-    # Start clone bots
-    clone_manager = get_clone_manager()
-    asyncio.create_task(clone_manager.start_all_clones())
-
-    # Restore active polls after restart
-    asyncio.create_task(_restore_active_polls(bot))
-
-    # Channel member snapshot scheduler (every 30 min)
-    from utils.snapshot_scheduler import set_bot as set_snap_bot, snapshot_loop
-    set_snap_bot(bot)
-    asyncio.create_task(snapshot_loop())
-    logger.info("📸 Snapshot scheduler started")
-
-    # Keep-alive pinger (Render free tier anti-sleep)
-    from utils.keep_alive import set_domain, keep_alive_loop
-    set_domain(settings.WEB_DOMAIN)
-    asyncio.create_task(keep_alive_loop())
-
-    # ── Web server runs in the SAME event loop as the bot ──
-    # Use uvicorn's Config+Server API so it shares asyncio loop
-    # This fixes the Internal Server Error caused by Motor MongoDB
-    # client being used from a different thread/event loop.
     import uvicorn
     from web.app import app as fastapi_app
 
@@ -129,22 +138,16 @@ async def main():
         host="0.0.0.0",
         port=settings.WEB_PORT,
         log_level="warning",
-        loop="none",          # use the already-running loop
+        loop="none",   # share the already-running asyncio loop
     )
     uvi_server = uvicorn.Server(uvi_config)
 
-    logger.info(f"🌐 Web panel starting on port {settings.WEB_PORT}")
-    logger.info(f"🔗 Admin: https://{settings.WEB_DOMAIN}/adminpanel/royalisbest/a?b3c")
+    # Start DB init + bot in background — uvicorn binds port immediately
+    # so Render detects it without waiting for MongoDB retries
+    asyncio.create_task(_init_then_start_bot())
 
-    # Run bot polling and web server concurrently in the same event loop
-    logger.info("🚀 Bot polling started!")
-    await asyncio.gather(
-        dp.start_polling(
-            bot,
-            allowed_updates=["message", "callback_query", "chat_member"]
-        ),
-        uvi_server.serve(),
-    )
+    logger.info(f"🌐 Web server binding on port {settings.WEB_PORT}...")
+    await uvi_server.serve()   # blocks here; bot runs as background task
 
 
 if __name__ == "__main__":
