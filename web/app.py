@@ -1,23 +1,30 @@
-"""
-Web server — FastAPI
-Admin panel: /adminpanel/royalisbest/a?b3c
-User panel:  /panel/<token>
-"""
-import time, secrets, hashlib, json
-from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-import asyncio
-from aiogram import Bot, Dispatcher
-from aiogram.filters import Command
-from aiogram.types import Message
 import os
-import uvicorn
+import asyncio
+import time
+import hashlib
+import json
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import Message
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN environment variable is not set")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -25,505 +32,589 @@ dp = Dispatcher()
 _sessions: dict = {}
 _start_time = time.time()
 PANEL_SECRET = "royalisbest"
-PANEL_PARAM  = "b3c"
+PANEL_PARAM = "b3c"
 
 
-def _hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
-def _get_token(request): return request.cookies.get("panel_session")
+def _hash_pw(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+
+def _get_token(request):
+    return request.cookies.get("panel_session")
+
+
 def _is_auth(token):
-    if not token or token not in _sessions: return False
-    if _sessions[token] < time.time():
-        del _sessions[token]; return False
-    return True
+    if not token or token not in _sessions:
+        return False
+    return time.time() - _sessions[token] < 86400  # 24h
 
-# ================= BOT HANDLERS =================
 
-@dp.message(Command("start"))
 async def start_cmd(message: Message):
-    await message.answer("Bot is working ✅")
+    await message.answer("Bot is running!")
 
-@dp.message()
+
 async def echo(message: Message):
     await message.answer(message.text)
 
-
-# ══════════════════════════════════════════════════════════════
-# AUTH
-# ══════════════════════════════════════════════════════════════
 
 async def _check_creds(username, password):
     from utils.db import get_db, is_mongo, get_sqlite_path
     hashed = _hash_pw(password)
     if is_mongo():
-        return bool(await get_db().panel_users.find_one({"username": username, "password": hashed}))
-    import aiosqlite
-    async with aiosqlite.connect(get_sqlite_path()) as conn:
-        async with conn.execute(
-            "SELECT id FROM panel_users WHERE username=? AND password=?", (username, hashed)
-        ) as cur:
-            return await cur.fetchone() is not None
-
-
-@app.get(f"/adminpanel/{PANEL_SECRET}/login", response_class=HTMLResponse)
-async def login_page(error: str = ""):
-    return HTMLResponse(_login_html(error))
-
-
-@app.post(f"/adminpanel/{PANEL_SECRET}/login")
-async def login_post(request: Request):
-    form = await request.form()
-    if await _check_creds(form.get("username",""), form.get("password","")):
-        tok = secrets.token_hex(32)
-        _sessions[tok] = time.time() + 28800
-        r = RedirectResponse(url=f"/adminpanel/{PANEL_SECRET}/a?{PANEL_PARAM}", status_code=302)
-        r.set_cookie("panel_session", tok, httponly=True, max_age=28800)
-        return r
-    return HTMLResponse(_login_html("❌ Invalid username or password"))
-
-
-@app.get(f"/adminpanel/{PANEL_SECRET}/logout")
-async def logout(request: Request):
-    tok = _get_token(request)
-    if tok and tok in _sessions: del _sessions[tok]
-    r = RedirectResponse(url=f"/adminpanel/{PANEL_SECRET}/login", status_code=302)
-    r.delete_cookie("panel_session"); return r
-
-
-# ══════════════════════════════════════════════════════════════
-# ADMIN PANEL
-# ══════════════════════════════════════════════════════════════
-
-@app.get(f"/adminpanel/{PANEL_SECRET}/a", response_class=HTMLResponse)
-async def admin_dashboard(request: Request):
-    if not _is_auth(_get_token(request)):
-        return RedirectResponse(url=f"/adminpanel/{PANEL_SECRET}/login", status_code=302)
-    return HTMLResponse(_admin_html())
-
-
-@app.get(f"/adminpanel/{PANEL_SECRET}/api/stats")
-async def api_stats(request: Request):
-    if not _is_auth(_get_token(request)): raise HTTPException(401)
-    return JSONResponse(await _build_stats())
-
-
-@app.get(f"/adminpanel/{PANEL_SECRET}/api/clones")
-async def api_clones(request: Request):
-    if not _is_auth(_get_token(request)): raise HTTPException(401)
-    return JSONResponse(await _build_clones())
-
-
-@app.get(f"/adminpanel/{PANEL_SECRET}/api/giveaways")
-async def api_giveaways(request: Request):
-    if not _is_auth(_get_token(request)): raise HTTPException(401)
-    return JSONResponse(await _build_giveaways())
-
-
-@app.get(f"/adminpanel/{PANEL_SECRET}/api/panels")
-async def api_panels(request: Request):
-    if not _is_auth(_get_token(request)): raise HTTPException(401)
-    return JSONResponse(await _build_panels())
-
-
-@app.post(f"/adminpanel/{PANEL_SECRET}/api/ban_clone")
-async def api_ban_clone(request: Request):
-    if not _is_auth(_get_token(request)): raise HTTPException(401)
-    data = await request.json()
-    from models.referral import ban_clone_bot
-    from utils.clone_manager import get_clone_manager
-    await get_clone_manager().stop_clone(data.get("token",""))
-    await ban_clone_bot(data.get("token",""))
-    return JSONResponse({"ok": True})
-
-
-@app.post(f"/adminpanel/{PANEL_SECRET}/api/broadcast")
-async def api_broadcast(request: Request):
-    if not _is_auth(_get_token(request)): raise HTTPException(401)
-    data = await request.json()
-    msg = data.get("message","")
-    if not msg: return JSONResponse({"ok": False, "error": "Empty"})
-    import asyncio
-    from web.broadcaster import do_global_broadcast
-    asyncio.create_task(do_global_broadcast(msg))
-    return JSONResponse({"ok": True})
-
-
-@app.post(f"/adminpanel/{PANEL_SECRET}/api/delete_panel")
-async def api_delete_panel(request: Request):
-    if not _is_auth(_get_token(request)): raise HTTPException(401)
-    data = await request.json()
-    from models.panel import soft_delete_panel
-    await soft_delete_panel(data.get("token",""))
-    return JSONResponse({"ok": True})
-
-
-# ══════════════════════════════════════════════════════════════
-# USER PANEL (public)
-# ══════════════════════════════════════════════════════════════
-
-@app.get("/panel/{token}", response_class=HTMLResponse)
-async def user_panel(token: str):
-    from models.panel import get_panel
-    panel = await get_panel(token)
-    if not panel:
-        return HTMLResponse(_not_found_html(), status_code=404)
-    data = await _build_panel_data(panel)
-    return HTMLResponse(_user_panel_html(panel, data))
-
-
-@app.get("/panel/{token}/api/data")
-async def user_panel_data(token: str):
-    from models.panel import get_panel
-    panel = await get_panel(token)
-    if not panel: raise HTTPException(404)
-    return JSONResponse(await _build_panel_data(panel))
-
-
-@app.post("/panel/{token}/delete")
-async def user_panel_delete(token: str, request: Request):
-    """Anyone can delete — we trust the link is private."""
-    from models.panel import get_panel, soft_delete_panel
-    panel = await get_panel(token)
-    if not panel: raise HTTPException(404)
-    await soft_delete_panel(token)
-    return JSONResponse({"ok": True})
-
-
-# ══════════════════════════════════════════════════════════════
-# DATA BUILDERS
-# ══════════════════════════════════════════════════════════════
-
-async def _build_stats():
-    from utils.db import get_db, is_mongo, get_sqlite_path
-    uptime_s = int(time.time() - _start_time)
-    h,r = divmod(uptime_s,3600); m,s = divmod(r,60)
-    uptime = f"{h}h {m}m {s}s"
-
-    if is_mongo():
         db = get_db()
-        total_clones    = await db.clone_bots.count_documents({"is_active": True})
-        total_users     = await db.referrals.count_documents({})
-        total_giveaways = await db.giveaways.count_documents({})
-        active_polls    = await db.giveaways.count_documents({"is_active": True})
-        total_votes     = 0
-        async for g in db.giveaways.find({}, {"total_votes": 1}):
-            total_votes += g.get("total_votes", 0)
-        banned_clones   = await db.clone_bots.count_documents({"is_banned": True})
-        total_panels    = await db.panels.count_documents({"is_deleted": False})
-        # Daily joins 7 days
-        since = datetime.utcnow() - timedelta(days=7)
-        pipeline = [
-            {"$match": {"joined_at": {"$gte": since}}},
-            {"$group": {"_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$joined_at"}},
-                        "count": {"$sum": 1}}},
-            {"$sort": {"_id": 1}}
-        ]
-        daily_raw = await db.referrals.aggregate(pipeline).to_list(length=None)
-        # Bot usage by day (giveaways created)
-        pipeline2 = [
-            {"$match": {"created_at": {"$gte": since}}},
-            {"$group": {"_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
-                        "count": {"$sum": 1}}},
-            {"$sort": {"_id": 1}}
-        ]
-        usage_raw = await db.giveaways.aggregate(pipeline2).to_list(length=None)
+        user = await db.panel_users.find_one({"username": username})
+        return user and user.get("password") == hashed
     else:
         import aiosqlite
         async with aiosqlite.connect(get_sqlite_path()) as conn:
-            async def cnt(q, p=()):
-                async with conn.execute(q,p) as c: return (await c.fetchone())[0]
-            total_clones    = await cnt("SELECT COUNT(*) FROM clone_bots WHERE is_active=1")
-            total_users     = await cnt("SELECT COUNT(*) FROM referrals")
-            total_giveaways = await cnt("SELECT COUNT(*) FROM giveaways")
-            active_polls    = await cnt("SELECT COUNT(*) FROM giveaways WHERE is_active=1")
-            total_votes_row = await cnt("SELECT COALESCE(SUM(total_votes),0) FROM giveaways")
-            total_votes     = total_votes_row
-            banned_clones   = await cnt("SELECT COUNT(*) FROM clone_bots WHERE is_banned=1")
-            try:
-                total_panels = await cnt("SELECT COUNT(*) FROM panels WHERE is_deleted=0")
-            except Exception:
-                total_panels = 0
-            since_str = (datetime.utcnow()-timedelta(days=7)).isoformat()
             async with conn.execute(
-                "SELECT substr(joined_at,1,10) d, COUNT(*) c FROM referrals "
-                "WHERE joined_at>=? GROUP BY d ORDER BY d", (since_str,)
+                "SELECT password FROM panel_users WHERE username=?", (username,)
             ) as cur:
-                daily_raw = [{"_id":r[0],"count":r[1]} for r in await cur.fetchall()]
-            async with conn.execute(
-                "SELECT substr(created_at,1,10) d, COUNT(*) c FROM giveaways "
-                "WHERE created_at>=? GROUP BY d ORDER BY d", (since_str,)
-            ) as cur:
-                usage_raw = [{"_id":r[0],"count":r[1]} for r in await cur.fetchall()]
-
-    daily_labels, daily_counts, usage_counts = [], [], []
-    day_map = {d["_id"]:d["count"] for d in daily_raw}
-    usage_map = {d["_id"]:d["count"] for d in usage_raw}
-    for i in range(6,-1,-1):
-        day = (datetime.utcnow()-timedelta(days=i)).strftime("%Y-%m-%d")
-        daily_labels.append(day[5:])
-        daily_counts.append(day_map.get(day,0))
-        usage_counts.append(usage_map.get(day,0))
-
-    return {
-        "uptime": uptime, "total_clones": total_clones, "total_users": total_users,
-        "total_giveaways": total_giveaways, "active_polls": active_polls,
-        "total_votes": total_votes, "banned_clones": banned_clones,
-        "total_panels": total_panels,
-        "daily_labels": daily_labels, "daily_counts": daily_counts,
-        "usage_counts": usage_counts
-    }
+                row = await cur.fetchone()
+        return row and row[0] == hashed
 
 
-async def _build_clones():
-    from utils.db import get_db, is_mongo, get_sqlite_path
-    if is_mongo():
-        db = get_db()
-        clones = await db.clone_bots.find({}).sort("created_at",-1).limit(100).to_list(None)
-        result = []
-        for c in clones:
-            uc = await db.referrals.count_documents({"clone_token": c["token"]})
-            result.append({
-                "bot_username": c.get("bot_username","?"),
-                "owner_id": c.get("owner_id"),
-                "is_active": c.get("is_active",False),
-                "is_banned": c.get("is_banned",False),
-                "user_count": uc,
-                "channel": c.get("channel_link","—"),
-                "token": c["token"],
-                "token_preview": c["token"][:12]+"...",
-                "created_at": str(c.get("created_at",""))[:10],
-            })
-        return result
-    import aiosqlite
-    async with aiosqlite.connect(get_sqlite_path()) as conn:
-        conn.row_factory = aiosqlite.Row
-        async with conn.execute("SELECT * FROM clone_bots ORDER BY created_at DESC LIMIT 100") as cur:
-            rows = await cur.fetchall()
-        result = []
-        for r in rows:
-            d = dict(r)
-            async with conn.execute(
-                "SELECT COUNT(*) FROM referrals WHERE clone_token=?", (d["token"],)
-            ) as c2:
-                uc = (await c2.fetchone())[0]
-            result.append({
-                "bot_username": d.get("bot_username","?"),
-                "owner_id": d.get("owner_id"),
-                "is_active": bool(d.get("is_active")),
-                "is_banned": bool(d.get("is_banned")),
-                "user_count": uc,
-                "channel": d.get("channel_link","—"),
-                "token": d["token"],
-                "token_preview": d["token"][:12]+"...",
-                "created_at": str(d.get("created_at",""))[:10],
-            })
-    return result
+def _login_html(error=""):
+    err_html = f'<div style="color:red;margin-bottom:10px;">{error}</div>' if error else ""
+    return f"""<!DOCTYPE html>
+<html>
+<head><title>RoyalityBots — Admin Login</title>
+<style>
+  body {{ font-family: Arial; background: #0a0a0f; color: #f1f0ff; margin: 0; padding: 20px; }}
+  .container {{ max-width: 400px; margin: 80px auto; background: #1a1a2e; padding: 30px; border-radius: 12px; border: 1px solid #2a2a45; }}
+  h1 {{ text-align: center; margin-bottom: 30px; }}
+  input {{ width: 100%; padding: 12px; margin: 10px 0; background: #0e0e1a; border: 1px solid #2a2a45; color: #f1f0ff; border-radius: 6px; box-sizing: border-box; }}
+  button {{ width: 100%; padding: 12px; margin-top: 20px; background: #6d28d9; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }}
+  button:hover {{ background: #8b5cf6; }}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔐 Admin Login</h1>
+  {err_html}
+  <form method="post" action="/login">
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="password" name="password" placeholder="Password" required>
+    <button type="submit">Login</button>
+  </form>
+</div>
+</body>
+</html>"""
 
 
-async def _build_giveaways():
-    from utils.db import get_db, is_mongo, get_sqlite_path
-    import json as _json
-    if is_mongo():
-        giveaways = await get_db().giveaways.find({}).sort("created_at",-1).limit(100).to_list(None)
-        return [{"giveaway_id":g["giveaway_id"],"title":g["title"],
-                 "channel_id":g.get("channel_id",""),"total_votes":g.get("total_votes",0),
-                 "is_active":g.get("is_active",False),"created_at":str(g.get("created_at",""))[:10]} for g in giveaways]
-    import aiosqlite
-    async with aiosqlite.connect(get_sqlite_path()) as conn:
-        conn.row_factory = aiosqlite.Row
-        async with conn.execute("SELECT * FROM giveaways ORDER BY created_at DESC LIMIT 100") as cur:
-            rows = await cur.fetchall()
-    return [{"giveaway_id":d["giveaway_id"],"title":d["title"],
-             "channel_id":d.get("channel_id",""),"total_votes":d["total_votes"],
-             "is_active":bool(d["is_active"]),"created_at":str(d.get("created_at",""))[:10]}
-            for d in [dict(r) for r in rows]]
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    return _login_html()
 
 
-async def _build_panels():
-    from utils.db import get_db, is_mongo, get_sqlite_path
-    if is_mongo():
-        panels = await get_db().panels.find({"is_deleted":False}).sort("created_at",-1).limit(100).to_list(None)
-        return [{"token":p["token"],"panel_type":p["panel_type"],"channel_title":p.get("channel_title",""),
-                 "channel_username":p.get("channel_username",""),"created_at":str(p.get("created_at",""))[:10]} for p in panels]
-    import aiosqlite
-    async with aiosqlite.connect(get_sqlite_path()) as conn:
-        conn.row_factory = aiosqlite.Row
-        try:
-            async with conn.execute("SELECT * FROM panels WHERE is_deleted=0 ORDER BY created_at DESC LIMIT 100") as cur:
-                rows = await cur.fetchall()
-            return [{"token":d["token"],"panel_type":d["panel_type"],"channel_title":d.get("channel_title",""),
-                     "channel_username":d.get("channel_username",""),"created_at":str(d.get("created_at",""))[:10]}
-                    for d in [dict(r) for r in rows]]
-        except Exception:
-            return []
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(error: str = ""):
+    return _login_html(error)
 
 
-async def _build_panel_data(panel: dict) -> dict:
-    """Build full data for the user panel page."""
-    from utils.db import get_db, is_mongo, get_sqlite_path
-    import json as _json
-    panel_type = panel.get("panel_type")
-    ref_id = panel.get("ref_id")
-    votes_data, options, prizes, total_votes = [], [], [], 0
-    refer_data, top_referrers = [], []
-    total_refs = 0
+@app.post("/login")
+async def login_post(request: Request):
+    try:
+        form = await request.form()
+        username = form.get("username", "").strip()
+        password = form.get("password", "").strip()
 
-    if panel_type == "giveaway":
+        if not username or not password:
+            return HTMLResponse(_login_html("Username and password required"), status_code=400)
+
+        if await _check_creds(username, password):
+            token = hashlib.sha256(f"{username}{time.time()}".encode()).hexdigest()
+            _sessions[token] = time.time()
+            response = HTMLResponse(
+                """<html><body><script>
+                document.location='/admin';
+                </script></body></html>"""
+            )
+            response.set_cookie("panel_session", token, max_age=86400, httponly=True)
+            return response
+        else:
+            return HTMLResponse(_login_html("Invalid credentials"), status_code=401)
+    except Exception as e:
+        return HTMLResponse(_login_html(f"Error: {str(e)}"), status_code=500)
+
+
+@app.get("/logout")
+async def logout(request: Request):
+    token = _get_token(request)
+    if token and token in _sessions:
+        del _sessions[token]
+    response = HTMLResponse(
+        """<html><body><script>
+        document.location='/login';
+        </script></body></html>"""
+    )
+    response.delete_cookie("panel_session")
+    return response
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    token = _get_token(request)
+    if not _is_auth(token):
+        return HTMLResponse(_login_html("Session expired"), status_code=401)
+    
+    try:
+        html = _admin_html()
+        return html
+    except Exception as e:
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
+
+
+@app.get("/api/stats")
+async def api_stats(request: Request):
+    token = _get_token(request)
+    if not _is_auth(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        stats = await _build_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/clones")
+async def api_clones(request: Request):
+    token = _get_token(request)
+    if not _is_auth(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        clones = await _build_clones()
+        return clones
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/giveaways")
+async def api_giveaways(request: Request):
+    token = _get_token(request)
+    if not _is_auth(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        giveaways = await _build_giveaways()
+        return giveaways
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/panels")
+async def api_panels(request: Request):
+    token = _get_token(request)
+    if not _is_auth(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        panels = await _build_panels()
+        return panels
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ban-clone")
+async def api_ban_clone(request: Request):
+    token = _get_token(request)
+    if not _is_auth(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        data = await request.json()
+        clone_token = data.get("token")
+        if not clone_token:
+            raise HTTPException(status_code=400, detail="Token required")
+        
+        from utils.clone_manager import get_clone_manager
+        from models.referral import ban_clone_bot
+        await get_clone_manager().stop_clone(clone_token)
+        await ban_clone_bot(clone_token)
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/broadcast")
+async def api_broadcast(request: Request):
+    token = _get_token(request)
+    if not _is_auth(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        data = await request.json()
+        message = data.get("message")
+        if not message:
+            raise HTTPException(status_code=400, detail="Message required")
+        
+        from web.broadcaster import do_global_broadcast
+        await do_global_broadcast(message)
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/delete-panel")
+async def api_delete_panel(request: Request):
+    token = _get_token(request)
+    if not _is_auth(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        data = await request.json()
+        panel_token = data.get("token")
+        if not panel_token:
+            raise HTTPException(status_code=400, detail="Token required")
+        
+        from models.panel import soft_delete_panel
+        await soft_delete_panel(panel_token)
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/panel/{token}", response_class=HTMLResponse)
+async def user_panel(token: str):
+    try:
+        from models.panel import get_panel
+        panel = await get_panel(token)
+        if not panel:
+            return _not_found_html()
+        
+        data = await _build_panel_data(panel)
+        html = _user_panel_html(panel, data)
+        return html
+    except Exception as e:
+        return _not_found_html()
+
+
+@app.get("/api/panel/{token}")
+async def user_panel_data(token: str):
+    try:
+        from models.panel import get_panel
+        panel = await get_panel(token)
+        if not panel:
+            raise HTTPException(status_code=404, detail="Panel not found")
+        
+        data = await _build_panel_data(panel)
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/panel/{token}/delete")
+async def user_panel_delete(token: str, request: Request):
+    try:
+        from models.panel import soft_delete_panel
+        await soft_delete_panel(token)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _build_stats():
+    from utils.db import is_mongo, get_db, get_sqlite_path
+    
+    try:
         if is_mongo():
-            g = await get_db().giveaways.find_one({"giveaway_id": ref_id})
+            db = get_db()
+            total_clones = await db.clone_bots.count_documents({"is_active": True})
+            total_users = await db.referrals.count_documents({})
+            total_giveaways = await db.giveaways.count_documents({})
+            active_giveaways = await db.giveaways.count_documents({"is_active": True})
         else:
             import aiosqlite
             async with aiosqlite.connect(get_sqlite_path()) as conn:
-                conn.row_factory = aiosqlite.Row
-                async with conn.execute("SELECT * FROM giveaways WHERE giveaway_id=?", (ref_id,)) as cur:
-                    row = await cur.fetchone()
-            g = None
-            if row:
-                g = dict(row)
-                g["prizes"] = _json.loads(g["prizes"])
-                g["options"] = _json.loads(g["options"])
-                g["votes"] = _json.loads(g["votes"])
-        if g:
-            options = g["options"]
-            prizes = g["prizes"]
-            total_votes = g.get("total_votes", 0)
-            raw_votes = {int(k): v for k, v in g.get("votes", {}).items()}
-            votes_data = [{"name": options[i], "votes": raw_votes.get(i, 0)} for i in range(len(options))]
-            votes_data.sort(key=lambda x: x["votes"], reverse=True)
+                async def cnt(q, p=()):
+                    async with conn.execute(q, p) as c:
+                        return (await c.fetchone())[0] or 0
+                
+                total_clones = await cnt("SELECT COUNT(*) FROM clone_bots WHERE is_active=1")
+                total_users = await cnt("SELECT COUNT(*) FROM referrals")
+                total_giveaways = await cnt("SELECT COUNT(*) FROM giveaways")
+                active_giveaways = await cnt("SELECT COUNT(*) FROM giveaways WHERE is_active=1")
+        
+        return {
+            "total_clones": total_clones,
+            "total_users": total_users,
+            "total_giveaways": total_giveaways,
+            "active_giveaways": active_giveaways,
+            "uptime": int(time.time() - _start_time)
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
-    elif panel_type == "refer":
+
+async def _build_clones():
+    from models.referral import get_all_clone_bots
+    
+    try:
+        clones = await get_all_clone_bots()
+        return [
+            {
+                "token": c.get("token", ""),
+                "username": c.get("bot_username", "unknown"),
+                "owner_id": c.get("owner_id", 0),
+                "is_active": c.get("is_active", True),
+                "is_banned": c.get("is_banned", False)
+            }
+            for c in clones
+        ]
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _build_giveaways():
+    from utils.db import is_mongo, get_db, get_sqlite_path
+    
+    try:
         if is_mongo():
-            users = await get_db().referrals.find({"clone_token": ref_id}).sort("refer_count", -1).to_list(None)
+            db = get_db()
+            giveaways = await db.giveaways.find({}).sort("created_at", -1).to_list(length=50)
         else:
             import aiosqlite
             async with aiosqlite.connect(get_sqlite_path()) as conn:
                 conn.row_factory = aiosqlite.Row
                 async with conn.execute(
-                    "SELECT * FROM referrals WHERE clone_token=? ORDER BY refer_count DESC", (ref_id,)
+                    "SELECT * FROM giveaways ORDER BY created_at DESC LIMIT 50"
                 ) as cur:
                     rows = await cur.fetchall()
-            users = [dict(r) for r in rows]
-        total_refs = len(users)
-        top_referrers = [{"name": u["user_name"], "refs": u.get("refer_count", 0)} for u in users[:20]]
-        refer_data = [{"name": u["user_name"], "refs": u.get("refer_count", 0),
-                       "joined": str(u.get("joined_at",""))[:10]} for u in users[:50]]
+            giveaways = [dict(r) for r in rows]
+        
+        return [
+            {
+                "id": g.get("giveaway_id", ""),
+                "title": g.get("title", ""),
+                "creator_id": g.get("creator_id", 0),
+                "is_active": g.get("is_active", False),
+                "total_votes": g.get("total_votes", 0)
+            }
+            for g in giveaways
+        ]
+    except Exception as e:
+        return {"error": str(e)}
 
-    # Channel growth snapshots
-    snapshots = panel.get("member_snapshots", [])
-    member_start = panel.get("member_start", 0)
-    member_current = snapshots[-1]["c"] if snapshots else member_start
-    member_gain = member_current - member_start
 
-    snap_labels = [s["t"][5:16].replace("T"," ") for s in snapshots[-24:]]
-    snap_counts = [s["c"] for s in snapshots[-24:]]
+async def _build_panels():
+    from utils.db import is_mongo, get_db, get_sqlite_path
+    
+    try:
+        if is_mongo():
+            db = get_db()
+            panels = await db.panels.find({"is_deleted": False}).to_list(length=50)
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(get_sqlite_path()) as conn:
+                conn.row_factory = aiosqlite.Row
+                async with conn.execute(
+                    "SELECT * FROM panels WHERE is_deleted=0 LIMIT 50"
+                ) as cur:
+                    rows = await cur.fetchall()
+            panels = [dict(r) for r in rows]
+        
+        return [
+            {
+                "token": p.get("token", ""),
+                "owner_id": p.get("owner_id", 0),
+                "type": p.get("panel_type", ""),
+                "ref_id": p.get("ref_id", ""),
+                "title": p.get("channel_title", "")
+            }
+            for p in panels
+        ]
+    except Exception as e:
+        return {"error": str(e)}
 
-    return {
-        "panel_type": panel_type,
-        "channel_title": panel.get("channel_title",""),
-        "channel_username": panel.get("channel_username",""),
-        "member_start": member_start,
-        "member_current": member_current,
-        "member_gain": member_gain,
-        "snap_labels": snap_labels,
-        "snap_counts": snap_counts,
-        "votes_data": votes_data,
-        "prizes": prizes,
-        "total_votes": total_votes,
-        "top_referrers": top_referrers,
-        "refer_data": refer_data,
-        "total_refs": total_refs,
-        "created_at": panel.get("created_at","")[:10],
-    }
+
+async def _build_panel_data(panel: dict) -> dict:
+    from utils.db import is_mongo, get_db, get_sqlite_path
+    
+    try:
+        token = panel.get("token", "")
+        ref_id = panel.get("ref_id", "")
+        panel_type = panel.get("panel_type", "")
+        
+        if panel_type == "refer":
+            if is_mongo():
+                db = get_db()
+                total_refs = await db.referrals.count_documents({"clone_token": ref_id})
+                top = await db.referrals.find_one(
+                    {"clone_token": ref_id},
+                    sort=[("refer_count", -1)]
+                )
+            else:
+                import aiosqlite
+                async with aiosqlite.connect(get_sqlite_path()) as conn:
+                    async with conn.execute(
+                        "SELECT COUNT(*) FROM referrals WHERE clone_token=?", (ref_id,)
+                    ) as cur:
+                        total_refs = (await cur.fetchone())[0] or 0
+                    async with conn.execute(
+                        "SELECT * FROM referrals WHERE clone_token=? ORDER BY refer_count DESC LIMIT 1",
+                        (ref_id,)
+                    ) as cur:
+                        top = await cur.fetchone()
+            
+            return {
+                "type": "refer",
+                "total_users": total_refs,
+                "top_referrer_count": top.get("refer_count", 0) if isinstance(top, dict) else (top[5] if top else 0)
+            }
+        else:
+            if is_mongo():
+                db = get_db()
+                giveaway = await db.giveaways.find_one({"giveaway_id": ref_id})
+            else:
+                import aiosqlite
+                async with aiosqlite.connect(get_sqlite_path()) as conn:
+                    conn.row_factory = aiosqlite.Row
+                    async with conn.execute(
+                        "SELECT * FROM giveaways WHERE giveaway_id=?", (ref_id,)
+                    ) as cur:
+                        row = await cur.fetchone()
+                giveaway = dict(row) if row else None
+            
+            return {
+                "type": "giveaway",
+                "total_votes": giveaway.get("total_votes", 0) if giveaway else 0,
+                "is_active": giveaway.get("is_active", False) if giveaway else False
+            }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/health")
 async def health():
-    """Render health check endpoint."""
-    return JSONResponse({"status": "ok", "uptime": int(time.time() - _start_time)})
-
-
-@app.get("/")
-async def root():
-    """Root redirect to admin panel."""
-    return RedirectResponse(url=f"/adminpanel/{PANEL_SECRET}/login", status_code=302)
-
-
-def run_web(host="0.0.0.0", port=8080):
-    uvicorn.run(app, host=host, port=port, log_level="warning")
-
-@app.on_event("startup")
-async def start_bot():
-    asyncio.create_task(dp.start_polling(bot))
-
-
-# ══════════════════════════════════════════════════════════════
-# HTML TEMPLATES
-# ══════════════════════════════════════════════════════════════
-
-def _login_html(error=""):
-    err = f'<div class="error">{error}</div>' if error else ""
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RoyalityBots Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
-<style>
-*{{margin:0;padding:0;box-sizing:border-box}}
-body{{background:#07070e;color:#f1f0ff;font-family:'Syne',sans-serif;min-height:100vh;
-  display:flex;align-items:center;justify-content:center;
-  background-image:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(109,40,217,.15),transparent)}}
-.card{{background:#0e0e1a;border:1px solid #1f1f35;border-radius:20px;padding:48px 40px;
-  width:100%;max-width:380px;box-shadow:0 0 80px rgba(109,40,217,.15)}}
-.logo{{text-align:center;margin-bottom:32px}}
-.logo h1{{font-size:24px;font-weight:800;background:linear-gradient(135deg,#c084fc,#a78bfa);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent}}
-.logo p{{color:#6b7280;font-size:12px;margin-top:5px}}
-label{{display:block;font-size:12px;color:#6b7280;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}}
-input{{width:100%;background:#0d0d16;border:1px solid #1f1f35;border-radius:10px;
-  padding:12px 16px;color:#f1f0ff;font-family:'Syne',sans-serif;font-size:14px;
-  outline:none;transition:border-color .2s;margin-bottom:16px}}
-input:focus{{border-color:#7c3aed}}
-button{{width:100%;background:linear-gradient(135deg,#6d28d9,#8b5cf6);border:none;
-  border-radius:10px;padding:14px;color:#fff;font-family:'Syne',sans-serif;
-  font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s}}
-button:hover{{opacity:.85}}
-.error{{background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.25);
-  color:#f43f5e;border-radius:8px;padding:10px 14px;font-size:13px;text-align:center;margin-bottom:14px}}
-hr{{border:none;border-top:1px solid #1f1f35;margin:24px 0}}
-.hint{{text-align:center;font-size:11px;color:#4a4a6a}}
-</style></head><body>
-<div class="card">
-  <div class="logo"><h1>👑 RoyalityBots</h1><p>Superadmin Access Only</p></div>
-  {err}
-  <form method="POST">
-    <label>Username</label><input type="text" name="username" required autocomplete="off">
-    <label>Password</label><input type="password" name="password" required>
-    <button type="submit">Sign In →</button>
-  </form>
-  <hr><p class="hint">Use /addadmin in bot to create accounts</p>
-</div></body></html>"""
+    return {"status": "ok", "uptime": int(time.time() - _start_time)}
 
 
 def _admin_html():
-    """Returns the full admin dashboard HTML."""
-    with open(__file__.replace("app.py","admin_dashboard.html")) as f:
-        return f.read()
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RoyalityBots — Admin</title>
+<style>
+body { font-family: Arial, sans-serif; background: #0a0a0f; color: #f1f0ff; margin: 0; padding: 20px; }
+.container { max-width: 1200px; margin: 0 auto; }
+h1 { text-align: center; margin-bottom: 30px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
+.stat { background: #1a1a2e; padding: 20px; border-radius: 8px; border: 1px solid #2a2a45; text-align: center; }
+.stat-val { font-size: 32px; font-weight: bold; color: #8b5cf6; }
+.stat-label { font-size: 12px; color: #6b7280; margin-top: 5px; }
+.panel { background: #1a1a2e; padding: 20px; border-radius: 8px; border: 1px solid #2a2a45; margin-bottom: 20px; }
+.panel h2 { margin-top: 0; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px; text-align: left; border-bottom: 1px solid #2a2a45; }
+th { font-weight: bold; background: #0a0a0f; }
+a { color: #8b5cf6; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.btn { padding: 10px 20px; background: #6d28d9; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.btn:hover { background: #8b5cf6; }
+.logout { float: right; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🛠 Admin Dashboard</h1>
+  <a href="/logout" class="btn logout">Logout</a>
+  <div class="stats" id="stats-container">
+    <div class="stat"><div class="stat-val">-</div><div class="stat-label">Active Clones</div></div>
+    <div class="stat"><div class="stat-val">-</div><div class="stat-label">Total Users</div></div>
+    <div class="stat"><div class="stat-val">-</div><div class="stat-label">Total Giveaways</div></div>
+    <div class="stat"><div class="stat-val">-</div><div class="stat-label">Active Giveaways</div></div>
+  </div>
+  <div class="panel">
+    <h2>📊 System Status</h2>
+    <p>Server is running. Load data with JavaScript.</p>
+  </div>
+</div>
+<script>
+fetch('/api/stats').then(r => r.json()).then(data => {
+  if (!data.error) {
+    document.querySelectorAll('.stat-val')[0].textContent = data.total_clones || 0;
+    document.querySelectorAll('.stat-val')[1].textContent = data.total_users || 0;
+    document.querySelectorAll('.stat-val')[2].textContent = data.total_giveaways || 0;
+    document.querySelectorAll('.stat-val')[3].textContent = data.active_giveaways || 0;
+  }
+}).catch(e => console.error('Stats error:', e));
+</script>
+</body>
+</html>"""
 
 
 def _user_panel_html(panel, data):
-    """Returns the user panel HTML with injected data."""
-    panel_type = data["panel_type"]
-    with open(__file__.replace("app.py","user_panel.html")) as f:
-        html = f.read()
-    # Inject JSON data
-    html = html.replace("__PANEL_DATA__", json.dumps(data))
-    html = html.replace("__PANEL_TOKEN__", panel["token"])
-    html = html.replace("__PANEL_TYPE__", panel_type)
-    return html
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Analytics — RoyalityBots</title>
+<style>
+body { font-family: Arial, sans-serif; background: #0a0a0f; color: #f1f0ff; margin: 0; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; }
+h1 { text-align: center; margin-bottom: 30px; }
+.panel { background: #1a1a2e; padding: 20px; border-radius: 8px; border: 1px solid #2a2a45; }
+.stat { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+.stat-item { background: #0a0a0f; padding: 15px; border-radius: 6px; }
+.stat-val { font-size: 24px; font-weight: bold; color: #8b5cf6; }
+.stat-label { font-size: 12px; color: #6b7280; margin-top: 5px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📊 Panel Analytics</h1>
+  <div class="panel">
+    <h2 id="panel-title">Loading...</h2>
+    <div class="stat" id="stats-container">
+      <div class="stat-item"><div class="stat-val">-</div><div class="stat-label">Metric 1</div></div>
+      <div class="stat-item"><div class="stat-val">-</div><div class="stat-label">Metric 2</div></div>
+    </div>
+  </div>
+</div>
+<script>
+const token = window.location.pathname.split('/').pop();
+fetch('/api/panel/' + token).then(r => r.json()).then(data => {
+  document.getElementById('panel-title').textContent = data.type === 'refer' ? '🔗 Referral Panel' : '🗳 Giveaway Panel';
+}).catch(e => console.error('Error:', e));
+</script>
+</body>
+</html>"""
 
 
 def _not_found_html():
-    return """<!DOCTYPE html><html><head><title>Not Found</title>
-<style>body{background:#07070e;color:#f1f0ff;font-family:sans-serif;
-display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}
-h1{font-size:48px;margin-bottom:12px}p{color:#6b7280}</style></head>
-<body><div><h1>🔍</h1><h2>Panel Not Found</h2>
-<p>This panel link is invalid or has been deleted.</p></div></body></html>"""
+    return """<!DOCTYPE html>
+<html>
+<head><title>Panel Not Found</title>
+<style>
+body { font-family: Arial; background: #0a0a0f; color: #f1f0ff; margin: 0; padding: 20px; text-align: center; }
+.container { max-width: 500px; margin: 100px auto; }
+h1 { color: #f43f5e; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>❌ Panel Not Found</h1>
+  <p>This panel link is invalid or has been deleted.</p>
+</div>
+</body>
+</html>"""
+
+
+def run_web(host="0.0.0.0", port=8080):
+    import uvicorn
+    uvicorn.run(app, host=host, port=port, log_level="info")
+
+
+if __name__ == "__main__":
+    run_web()
