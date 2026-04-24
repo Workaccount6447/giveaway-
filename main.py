@@ -129,14 +129,19 @@ async def main():
     web_thread = threading.Thread(target=_start_web_server, daemon=True)
     web_thread.start()
     logger.info(f"🌐 Web panel started on port {settings.WEB_PORT}")
-    logger.info(f"🔗 Admin: https://{settings.WEB_DOMAIN}/adminpanel/royalisbest/a?b3c")
+    logger.info(f"🔗 Admin: https://{settings.WEB_DOMAIN}/login")
 
     # Start polling
     logger.info("🚀 Bot polling started!")
-    await dp.start_polling(
-        bot,
-        allowed_updates=["message", "callback_query", "chat_member"]
-    )
+    try:
+        await dp.start_polling(
+            bot,
+            allowed_updates=["message", "callback_query", "chat_member"]
+        )
+    except KeyboardInterrupt:
+        logger.info("Bot stopped")
+    finally:
+        await bot.session.close()
 
 
 if __name__ == "__main__":
