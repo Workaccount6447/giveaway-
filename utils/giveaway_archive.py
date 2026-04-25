@@ -34,6 +34,12 @@ async def archive_and_purge(bot: Bot, giveaway_id: str) -> bool:
         logger.warning("archive_and_purge: DATABASE_CHANNEL not set — skipping archive")
         return False
 
+    # Convert channel ID to int if it's a numeric string (e.g. "-1003701269089")
+    try:
+        db_channel = int(db_channel)
+    except (ValueError, TypeError):
+        pass  # Keep as string (e.g. "@mychannel")
+
     # Always use the main bot to send to DATABASE_CHANNEL
     # (the bot passed in may be a clone bot that isn't admin in the channel)
     from utils.log_utils import get_main_bot
@@ -91,6 +97,7 @@ async def archive_and_purge(bot: Bot, giveaway_id: str) -> bool:
     json_bytes = json.dumps(archive, default=_default, ensure_ascii=False, indent=2).encode()
     file_obj   = io.BytesIO(json_bytes)
     file_obj.name = f"giveaway_{giveaway_id}.json"
+    file_obj.seek(0)  # Ensure pointer is at start before sending
 
     title       = giveaway.get("title", giveaway_id)
     total_v     = giveaway.get("total_votes", 0)
@@ -123,8 +130,8 @@ async def archive_and_purge(bot: Bot, giveaway_id: str) -> bool:
         file_id = sent_msg.document.file_id
         logger.info(f"✅ Giveaway {giveaway_id} archived to DATABASE_CHANNEL")
     except Exception as e:
-        logger.error(f"archive_and_purge: failed to send to DATABASE_CHANNEL: {e}")
-        return False
+        logger.error(f"archive_and_purge: failed to send to DATABASE_CHANNEL {db_channel!r}: {e}")
+        raise  # Re-raise so _archive_giveaway can show the real error to creator
 
     # ── 3b. Store enriched metadata for admin panel + /oldgiveaway ──
     try:
