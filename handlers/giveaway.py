@@ -554,8 +554,10 @@ async def _archive_giveaway(bot: Bot, giveaway_id: str, creator_id: int = None):
     except Exception as e:
         logger.error(f"_archive_giveaway error: {e}")
         await _notify_creator(
-            f"❌ <b>Giveaway archive error!</b>\n\n"
-            f"<code>{e}</code>"
+            f"❌ <b>Giveaway archive error:</b>\n\n"
+            f"<code>{e}</code>\n\n"
+            f"Giveaway ID: <code>{giveaway_id}</code>\n"
+            f"DATABASE_CHANNEL: <code>{getattr(settings, 'DATABASE_CHANNEL', 'not set')}</code>"
         )
 
 
