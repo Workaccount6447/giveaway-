@@ -487,3 +487,33 @@ async def get_daily_joins(clone_token):
     if is_mongo():
         return await _mongo_get_daily_joins(clone_token)
     return await _sqlite_get_daily_joins(clone_token)
+
+
+async def update_referral_source(clone_token: str, user_id: int, new_referrer_id: int):
+    """
+    Credit a referral to new_referrer_id for user_id (used when an existing user
+    clicks a fresh referral link). Increments referrer's refer_count by 1.
+    """
+    from utils.db import get_db, is_mongo, get_sqlite_path
+    if is_mongo():
+        db = get_db()
+        await db.referrals.update_one(
+            {"clone_token": clone_token, "user_id": user_id},
+            {"$set": {"referred_by": new_referrer_id}}
+        )
+        await db.referrals.update_one(
+            {"clone_token": clone_token, "user_id": new_referrer_id},
+            {"$inc": {"refer_count": 1}}
+        )
+    else:
+        import aiosqlite
+        async with aiosqlite.connect(get_sqlite_path()) as conn:
+            await conn.execute(
+                "UPDATE referrals SET referred_by=? WHERE clone_token=? AND user_id=?",
+                (new_referrer_id, clone_token, user_id)
+            )
+            await conn.execute(
+                "UPDATE referrals SET refer_count=refer_count+1 WHERE clone_token=? AND user_id=?",
+                (clone_token, new_referrer_id)
+            )
+            await conn.commit()
