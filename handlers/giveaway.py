@@ -545,19 +545,23 @@ async def _archive_giveaway(bot: Bot, giveaway_id: str, creator_id: int = None):
         ok = await archive_and_purge(bot, giveaway_id)
         if ok:
             logger.info(f"Giveaway {giveaway_id} archived successfully")
+            await _notify_creator(
+                f"📦 <b>Giveaway archived!</b>\n\n"
+                f"<code>{giveaway_id}</code> has been saved to your DATABASE_CHANNEL and removed from the live database."
+            )
         else:
             await _notify_creator(
-                "❌ <b>Giveaway archive failed!</b>\n\n"
-                f"Could not save giveaway <code>{giveaway_id}</code> to your DATABASE_CHANNEL.\n"
-                "Check that the bot is an admin in the DATABASE_CHANNEL and the channel ID is correct."
+                f"❌ <b>Giveaway archive failed!</b>\n\n"
+                f"Giveaway <code>{giveaway_id}</code> could not be saved.\n"
+                f"Check Render logs for the exact error."
             )
     except Exception as e:
-        logger.error(f"_archive_giveaway error: {e}")
+        logger.error(f"_archive_giveaway error for {giveaway_id}: {e}", exc_info=True)
         await _notify_creator(
             f"❌ <b>Giveaway archive error:</b>\n\n"
-            f"<code>{e}</code>\n\n"
-            f"Giveaway ID: <code>{giveaway_id}</code>\n"
-            f"DATABASE_CHANNEL: <code>{getattr(settings, 'DATABASE_CHANNEL', 'not set')}</code>"
+            f"<code>{type(e).__name__}: {e}</code>\n\n"
+            f"ID: <code>{giveaway_id}</code>\n"
+            f"DB_CHANNEL: <code>{getattr(settings, 'DATABASE_CHANNEL', 'not set')}</code>"
         )
 
 
