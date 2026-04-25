@@ -118,10 +118,19 @@ async def _start_bot():
         set_domain(settings.WEB_DOMAIN)
         asyncio.create_task(keep_alive_loop())
 
+        # Drop webhook + pending updates to fix TelegramConflictError on Render restarts
+        # (previous instance may not have shut down cleanly, leaving a stale getUpdates lock)
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+            logger.info("🔄 Webhook cleared, pending updates dropped")
+        except Exception as e:
+            logger.warning(f"delete_webhook warning (non-fatal): {e}")
+
         logger.info("🚀 Bot polling started!")
         await dp.start_polling(
             bot,
-            allowed_updates=["message", "callback_query", "chat_member"]
+            allowed_updates=["message", "callback_query", "chat_member"],
+            drop_pending_updates=True,
         )
     except Exception as e:
         logger.error(f"❌ Bot failed: {e}", exc_info=True)
