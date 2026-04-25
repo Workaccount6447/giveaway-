@@ -10,7 +10,7 @@ def _now() -> str:
 
 # ─── MONGO HELPERS ───────────────────────────────────────────
 
-async def _mongo_create(creator_id, channel_id, title, prizes, options, end_time, message_id):
+async def _mongo_create(creator_id, channel_id, title, prizes, options, end_time, message_id, allow_winner_dm=False):
     from utils.db import get_db
     db = get_db()
     giveaway = {
@@ -25,6 +25,7 @@ async def _mongo_create(creator_id, channel_id, title, prizes, options, end_time
         "is_active": True,
         "end_time": end_time,
         "message_id": message_id,
+        "allow_winner_dm": allow_winner_dm,
         "created_at": datetime.utcnow()
     }
     await db.giveaways.insert_one(giveaway)
@@ -77,7 +78,7 @@ async def _mongo_update_message(giveaway_id, message_id, channel_id):
 
 # ─── SQLITE HELPERS ───────────────────────────────────────────
 
-async def _sqlite_create(creator_id, channel_id, title, prizes, options, end_time, message_id):
+async def _sqlite_create(creator_id, channel_id, title, prizes, options, end_time, message_id, allow_winner_dm=False):
     import aiosqlite
     from utils.db import get_sqlite_path
     giveaway_id = str(uuid.uuid4())[:8].upper()
@@ -85,13 +86,13 @@ async def _sqlite_create(creator_id, channel_id, title, prizes, options, end_tim
         await conn.execute(
             """INSERT INTO giveaways
                (giveaway_id, creator_id, channel_id, title, prizes, options,
-                votes, total_votes, is_active, end_time, message_id, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                votes, total_votes, is_active, end_time, message_id, allow_winner_dm, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (giveaway_id, creator_id, channel_id, title,
              json.dumps(prizes), json.dumps(options),
              "{}", 0, 1,
              end_time.isoformat() if end_time else None,
-             message_id, _now())
+             message_id, 1 if allow_winner_dm else 0, _now())
         )
         await conn.commit()
     return await _sqlite_get(giveaway_id)
@@ -129,6 +130,7 @@ def _row_to_giveaway(row: dict) -> dict:
     row["options"] = json.loads(row["options"])
     row["votes"] = json.loads(row["votes"])
     row["is_active"] = bool(row["is_active"])
+    row["allow_winner_dm"] = bool(row.get("allow_winner_dm", 0))
     return row
 
 
@@ -187,11 +189,11 @@ async def _sqlite_update_message(giveaway_id, message_id, channel_id):
 # ─── PUBLIC API ───────────────────────────────────────────────
 
 async def create_giveaway(creator_id, channel_id, title, prizes, options,
-                           end_time=None, message_id=None):
+                           end_time=None, message_id=None, allow_winner_dm=False):
     from utils.db import is_mongo
     if is_mongo():
-        return await _mongo_create(creator_id, channel_id, title, prizes, options, end_time, message_id)
-    return await _sqlite_create(creator_id, channel_id, title, prizes, options, end_time, message_id)
+        return await _mongo_create(creator_id, channel_id, title, prizes, options, end_time, message_id, allow_winner_dm)
+    return await _sqlite_create(creator_id, channel_id, title, prizes, options, end_time, message_id, allow_winner_dm)
 
 
 async def get_giveaway(giveaway_id: str):
