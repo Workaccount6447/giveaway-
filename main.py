@@ -91,6 +91,15 @@ async def _start_bot():
         from utils.log_utils import set_main_bot as set_log_bot
         set_log_bot(bot)
 
+        # Drop webhook + pending updates FIRST to fix TelegramConflictError on Render restarts.
+        # Previous instance may not have shut down cleanly, leaving a stale getUpdates lock.
+        # Must happen BEFORE include_router() — a conflicted bot will cause "Router already attached".
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+            logger.info("🔄 Webhook cleared, pending updates dropped")
+        except Exception as e:
+            logger.warning(f"delete_webhook warning (non-fatal): {e}")
+
         # ── Ban middleware — must be registered before routers ──
         from utils.ban_middleware import BanMiddleware
         dp.message.middleware(BanMiddleware())
@@ -117,14 +126,6 @@ async def _start_bot():
         from utils.keep_alive import set_domain, keep_alive_loop
         set_domain(settings.WEB_DOMAIN)
         asyncio.create_task(keep_alive_loop())
-
-        # Drop webhook + pending updates to fix TelegramConflictError on Render restarts
-        # (previous instance may not have shut down cleanly, leaving a stale getUpdates lock)
-        try:
-            await bot.delete_webhook(drop_pending_updates=True)
-            logger.info("🔄 Webhook cleared, pending updates dropped")
-        except Exception as e:
-            logger.warning(f"delete_webhook warning (non-fatal): {e}")
 
         logger.info("🚀 Bot polling started!")
         await dp.start_polling(
