@@ -887,16 +887,11 @@ async def _scheduled_post(giveaway_id: str, delay: float, bot: Bot):
 
 @router.message(Command("testarchive"))
 async def cmd_test_archive(message: Message, bot: Bot):
-    """
-    Usage: /testarchive GIVEAWAY_ID
-    Superadmin-only — test archive pipeline without closing the poll.
-    Reports exactly what happens at each step.
-    """
+    """Superadmin-only: test the archive pipeline without closing a real poll."""
     from config.settings import settings
     from utils.log_utils import get_main_bot
 
-    user_id = message.from_user.id
-    if user_id not in (settings.SUPERADMIN_IDS or []):
+    if message.from_user.id not in (settings.SUPERADMIN_IDS or []):
         await message.answer("❌ Superadmin only.")
         return
 
@@ -908,27 +903,25 @@ async def cmd_test_archive(message: Message, bot: Bot):
     giveaway_id = parts[1].upper()
     giveaway = await get_giveaway(giveaway_id)
     if not giveaway:
-        await message.answer(f"❌ Giveaway <code>{giveaway_id}</code> not found in DB.", parse_mode="HTML")
+        await message.answer(
+            f"❌ Giveaway <code>{giveaway_id}</code> not found in DB.",
+            parse_mode="HTML"
+        )
         return
 
     db_channel = getattr(settings, "DATABASE_CHANNEL", None)
-    main_bot   = get_main_bot()
+    main_bot = get_main_bot()
 
-    await message.answer(
-        f"🔍 <b>Archive Test</b>
-"
-        f"━━━━━━━━━━━━━━━━━━━━━
-"
-        f"🆔 Giveaway: <code>{giveaway_id}</code>
-"
-        f"📦 DATABASE_CHANNEL: <code>{db_channel or 'NOT SET'}</code>
-"
-        f"🤖 Main bot ready: <code>{'YES' if main_bot else 'NO — fallback to passed bot'}</code>
-
-"
-        f"⏳ Attempting archive now...",
-        parse_mode="HTML"
-    )
+    lines = [
+        "<b>Archive Test</b>",
+        "━━━━━━━━━━━━━━━━━━━━━",
+        f"ID: <code>{giveaway_id}</code>",
+        f"DATABASE_CHANNEL: <code>{db_channel or 'NOT SET'}</code>",
+        f"Main bot ready: <code>{'YES' if main_bot else 'NO (will use fallback)'}</code>",
+        "",
+        "Attempting archive now...",
+    ]
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
     try:
         from utils.giveaway_archive import archive_and_purge
@@ -936,20 +929,16 @@ async def cmd_test_archive(message: Message, bot: Bot):
         ok = await archive_and_purge(send_bot, giveaway_id)
         if ok:
             await message.answer(
-                f"✅ <b>Archive SUCCESS!</b>
-"
-                f"<code>{giveaway_id}</code> sent to DATABASE_CHANNEL and purged from DB.",
+                f"<b>Archive SUCCESS!</b>\n<code>{giveaway_id}</code> sent to DATABASE_CHANNEL and purged from DB.",
                 parse_mode="HTML"
             )
         else:
             await message.answer(
-                "❌ <b>Archive returned False.</b>
-Check Render logs for [ARCHIVE] lines.",
+                "<b>Archive returned False.</b>\nCheck Render logs for [ARCHIVE] lines.",
                 parse_mode="HTML"
             )
     except Exception as e:
         await message.answer(
-            f"❌ <b>Archive EXCEPTION:</b>
-<code>{type(e).__name__}: {e}</code>",
+            f"<b>Archive EXCEPTION:</b>\n<code>{type(e).__name__}: {e}</code>",
             parse_mode="HTML"
         )
