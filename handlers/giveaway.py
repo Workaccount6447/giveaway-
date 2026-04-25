@@ -1,3 +1,4 @@
+# handlers/giveaway.py
 import asyncio
 from datetime import datetime, timedelta
 from aiogram import Router, F, Bot
@@ -457,7 +458,7 @@ async def _auto_close(giveaway_id: str, delay: float, bot: Bot):
         pass
     await _send_close_report(bot, updated, votes)
     await _dm_winner_if_allowed(bot, updated, votes)
-    await _archive_giveaway(bot, giveaway_id)
+    await _archive_giveaway(bot, giveaway_id, creator_id=giveaway.get("creator_id"))
 
 
 async def _dm_winner_if_allowed(bot: Bot, giveaway: dict, votes: dict):
@@ -516,22 +517,43 @@ async def _dm_winner_if_allowed(bot: Bot, giveaway: dict, votes: dict):
         pass  # User may have blocked the bot
 
 
-async def _archive_giveaway(bot: Bot, giveaway_id: str):
+async def _archive_giveaway(bot: Bot, giveaway_id: str, creator_id: int = None):
     """Archive closed giveaway to DATABASE_CHANNEL and purge from live DB."""
     from config.settings import settings
+
+    async def _notify_creator(msg: str):
+        if creator_id:
+            try:
+                await bot.send_message(creator_id, msg, parse_mode="HTML")
+            except Exception:
+                pass
+
     if not getattr(settings, "DATABASE_CHANNEL", None):
+        logger.warning("_archive_giveaway: DATABASE_CHANNEL not set — skipping archive")
+        await _notify_creator(
+            "⚠️ <b>Giveaway data not archived!</b>\n\n"
+            "The <code>DATABASE_CHANNEL</code> env variable is not set.\n"
+            "Your giveaway data was <b>not saved</b> to Telegram.\n"
+            "Please set <code>DATABASE_CHANNEL</code> and redeploy."
+        )
         return
     try:
         from utils.giveaway_archive import archive_and_purge
         ok = await archive_and_purge(bot, giveaway_id)
         if ok:
-            # Try to store file_id for /getgiveaway retrieval
-            # (file_id is set inside archive_and_purge via a callback — here we just log)
-            import logging
-            logging.getLogger(__name__).info(f"Giveaway {giveaway_id} archived successfully")
+            logger.info(f"Giveaway {giveaway_id} archived successfully")
+        else:
+            await _notify_creator(
+                "❌ <b>Giveaway archive failed!</b>\n\n"
+                f"Could not save giveaway <code>{giveaway_id}</code> to your DATABASE_CHANNEL.\n"
+                "Check that the bot is an admin in the DATABASE_CHANNEL and the channel ID is correct."
+            )
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"_archive_giveaway error: {e}")
+        logger.error(f"_archive_giveaway error: {e}")
+        await _notify_creator(
+            f"❌ <b>Giveaway archive error!</b>\n\n"
+            f"<code>{e}</code>"
+        )
 
 
 async def _send_close_report(bot: Bot, giveaway: dict, votes: dict):
@@ -669,7 +691,7 @@ async def handle_close_poll(callback: CallbackQuery, bot: Bot):
     await callback.answer("🔒 Poll closed!")
     await _send_close_report(bot, updated, votes)
     await _dm_winner_if_allowed(bot, updated, votes)
-    await _archive_giveaway(bot, giveaway_id)
+    await _archive_giveaway(bot, giveaway_id, creator_id=giveaway.get("creator_id"))
 
 
 @router.message(Command("closegiveaway"))
@@ -712,7 +734,7 @@ async def cmd_close_giveaway(message: Message, bot: Bot):
     )
     await _send_close_report(bot, updated, votes)
     await _dm_winner_if_allowed(bot, updated, votes)
-    await _archive_giveaway(bot, giveaway_id)
+    await _archive_giveaway(bot, giveaway_id, creator_id=giveaway.get("creator_id"))
 
 
 # ─── Reopen Poll ──────────────────────────────────────────────
