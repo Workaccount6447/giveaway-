@@ -1,6 +1,8 @@
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
+from utils.db import get_db, is_mongo, get_sqlite_path
+import json
 
 router = Router()
 
@@ -12,14 +14,37 @@ async def my_giveaways(event):
     if isinstance(event, CallbackQuery):
         await event.answer()
 
-    from utils.db import get_db
-    db = get_db()
     user_id = event.from_user.id
-    cursor = db.giveaways.find({"creator_id": user_id}).sort("created_at", -1).limit(10)
-    giveaways = await cursor.to_list(length=10)
+    giveaways = []
+
+    if is_mongo():
+        db = get_db()
+        cursor = db.giveaways.find({"creator_id": user_id}).sort("created_at", -1).limit(10)
+        giveaways = await cursor.to_list(length=10)
+    else:
+        import aiosqlite
+        async with aiosqlite.connect(get_sqlite_path()) as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
+                "SELECT * FROM giveaways WHERE creator_id=? ORDER BY created_at DESC LIMIT 10",
+                (user_id,)
+            ) as cur:
+                rows = await cur.fetchall()
+        for r in rows:
+            d = dict(r)
+            d["prizes"] = json.loads(d["prizes"])
+            d["options"] = json.loads(d["options"])
+            d["votes"] = json.loads(d["votes"])
+            d["is_active"] = bool(d["is_active"])
+            giveaways.append(d)
 
     if not giveaways:
-        await msg.answer("You haven't created any giveaways yet.\nUse /creategiveaway to start one!")
+        await msg.answer(
+            "📋 <b>My Giveaways</b>\n\n"
+            "You haven't created any giveaways yet.\n"
+            "Use /creategiveaway to start one!",
+            parse_mode="HTML"
+        )
         return
 
     lines = ["📋 <b>Your Giveaways</b>\n"]
