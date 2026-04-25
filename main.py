@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import json
+import signal
+import sys
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from config.settings import settings
@@ -14,8 +16,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+_main_bot = None
+_main_dp = None
 
-# ─── Poll restore on restart ──────────────────────────────────
 
 async def _restore_active_polls(bot: Bot):
     from utils.db import get_db, is_mongo, get_sqlite_path
@@ -71,21 +74,69 @@ async def _restore_active_polls(bot: Bot):
         logger.error(f"Poll restore error: {e}")
 
 
-# ─── Bot startup ──────────────────────────────────────────────
+async def _graceful_shutdown():
+    """
+    Stop polling cleanly on SIGTERM so Telegram releases the getUpdates
+    session IMMEDIATELY — prevents the 2-5 hour conflict on next deploy.
+    """
+    global _main_bot, _main_dp
+    logger.info("🛑 Shutdown signal — stopping bot gracefully...")
+
+    try:
+        if _main_dp is not None:
+            await _main_dp.stop_polling()
+            logger.info("✅ Polling stopped")
+    except Exception as e:
+        logger.warning(f"stop_polling error: {e}")
+
+    try:
+        if _main_bot is not None:
+            await _main_bot.delete_webhook(drop_pending_updates=False)
+            await _main_bot.session.close()
+            logger.info("✅ Bot session closed — Telegram lock released")
+    except Exception as e:
+        logger.warning(f"Bot close error: {e}")
+
+    logger.info("👋 Shutdown complete")
+
+
+def _install_signal_handlers(loop):
+    def _handle():
+        logger.info("📡 Signal caught — graceful shutdown")
+        asyncio.ensure_future(_graceful_shutdown(), loop=loop)
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _handle)
+        except (NotImplementedError, RuntimeError):
+            pass
+
 
 async def _start_bot():
+    global _main_bot, _main_dp
+
     try:
         bot = Bot(token=settings.BOT_TOKEN)
+        _main_bot = bot
 
-        # Clear stale polling lock BEFORE creating Dispatcher or including routers
-        try:
-            await bot.delete_webhook(drop_pending_updates=True)
-            logger.info("🔄 Webhook cleared, pending updates dropped")
-        except Exception as e:
-            logger.warning(f"delete_webhook warning: {e}")
+        # Force-release any stale Telegram polling session with retries
+        for attempt in range(1, 6):
+            try:
+                await bot.delete_webhook(drop_pending_updates=True)
+                logger.info(f"🔄 Webhook cleared (attempt {attempt})")
+                break
+            except Exception as e:
+                logger.warning(f"delete_webhook attempt {attempt} failed: {e}")
+                if attempt < 5:
+                    await asyncio.sleep(3)
+
+        # Give old instance time to fully release its session
+        logger.info("⏳ Waiting 5s for old instance to release Telegram session...")
+        await asyncio.sleep(5)
 
         storage = MemoryStorage()
         dp = Dispatcher(storage=storage)
+        _main_dp = dp
 
         me = await bot.get_me()
         clone_manager_module.MAIN_BOT_USERNAME = me.username
@@ -97,16 +148,11 @@ async def _start_bot():
         from utils.log_utils import set_main_bot as set_log_bot
         set_log_bot(bot)
 
-        # ── Ban middleware ──────────────────────────────────────
         from utils.ban_middleware import BanMiddleware
         dp.message.middleware(BanMiddleware())
         dp.callback_query.middleware(BanMiddleware())
 
-        # ── Import routers fresh — never use module-level cached imports
-        #    so restarted process always gets clean Router objects ─────────
         import importlib
-        import sys
-
         for mod_name in [
             "handlers.start", "handlers.giveaway", "handlers.referral",
             "handlers.admin", "handlers.clone_bot", "handlers.stats",
@@ -145,8 +191,6 @@ async def _start_bot():
         logger.error(f"❌ Bot failed: {e}", exc_info=True)
 
 
-# ─── DB init then launch bot ──────────────────────────────────
-
 async def _init_then_start_bot():
     try:
         logger.info("🔄 Initialising database...")
@@ -157,11 +201,12 @@ async def _init_then_start_bot():
         logger.error(f"❌ Startup failed: {e}", exc_info=True)
 
 
-# ─── Main ─────────────────────────────────────────────────────
-
 async def main():
     import uvicorn
     from web.app import app as fastapi_app
+
+    loop = asyncio.get_running_loop()
+    _install_signal_handlers(loop)
 
     uvi_config = uvicorn.Config(
         fastapi_app,
@@ -176,6 +221,8 @@ async def main():
 
     logger.info(f"🌐 Web server binding on port {settings.WEB_PORT}...")
     await uvi_server.serve()
+
+    await _graceful_shutdown()
 
 
 if __name__ == "__main__":
