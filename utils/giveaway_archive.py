@@ -44,10 +44,17 @@ async def archive_and_purge(bot: Bot, giveaway_id: str) -> bool:
     except (ValueError, TypeError):
         pass  # Keep as string (e.g. "@mychannel")
 
-    # Always use the main bot to send to DATABASE_CHANNEL
+    # Always use the MAIN bot to send to DATABASE_CHANNEL.
+    # Clone bots are NOT admins in DATABASE_CHANNEL — using them causes a silent 403 Forbidden.
     from utils.log_utils import get_main_bot
-    send_bot = get_main_bot() or bot
-    print(f"[ARCHIVE] send_bot = {send_bot}", flush=True)
+    send_bot = get_main_bot()
+    if send_bot is None:
+        # Fallback: use whatever bot was passed in (e.g. during early startup before log_utils is wired)
+        send_bot = bot
+        print(f"[ARCHIVE] WARNING: get_main_bot() is None — using fallback bot. "
+              f"Ensure DATABASE_CHANNEL has this bot as admin!", flush=True)
+    else:
+        print(f"[ARCHIVE] Using main bot (token prefix: {send_bot.token[:10]}...)", flush=True)
 
     from utils.db import get_db, is_mongo, get_sqlite_path
 
