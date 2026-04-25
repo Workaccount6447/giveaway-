@@ -69,24 +69,3 @@ async def cmd_help(message: Message):
         "/clonebot — Set up your referral clone bot\n",
         parse_mode="HTML"
     )
-
-
-@router.message(Command("help"))
-async def cmd_help(message: Message):
-    await message.answer(
-        "📖 <b>Help Guide</b>\n\n"
-        "<b>Giveaway Poll:</b>\n"
-        "1. Add this bot as admin in your channel\n"
-        "2. Use /creategiveaway and follow the setup steps\n"
-        "3. The poll posts in your channel with live vote bars\n"
-        "4. Users must join your channel to vote\n\n"
-        "<b>Clone Refer Bot:</b>\n"
-        "1. Create a new bot via @BotFather\n"
-        "2. Use /clonebot and paste your bot token\n"
-        "3. Your bot is now live and tracks referrals!\n\n"
-        "<b>Commands:</b>\n"
-        "/creategiveaway — Start a new giveaway\n"
-        "/mygiveaways — View your active giveaways\n"
-        "/clonebot — Set up your referral clone bot\n",
-        parse_mode="HTML"
-    )
