@@ -87,11 +87,24 @@ async def _start_bot():
         from web.broadcaster import set_main_bot
         set_main_bot(bot)
 
+        # Register main bot for log_utils — all LOG_CHANNEL messages go through it
+        from utils.log_utils import set_main_bot as set_log_bot
+        set_log_bot(bot)
+
+        # ── Ban middleware — must be registered before routers ──
+        from utils.ban_middleware import BanMiddleware
+        dp.message.middleware(BanMiddleware())
+        dp.callback_query.middleware(BanMiddleware())
+
         dp.include_router(start.router)
         dp.include_router(giveaway.router)
         dp.include_router(referral.router)
         dp.include_router(admin.router)
         dp.include_router(clone_bot.router)
+
+        # ── New feature routers ────────────────────────────────
+        from handlers import stats as stats_handler
+        dp.include_router(stats_handler.router)
 
         clone_manager = get_clone_manager()
         asyncio.create_task(clone_manager.start_all_clones())
