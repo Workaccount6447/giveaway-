@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Database channel — closed giveaway JSON files are sent here for cold storage
     # Format: -1001234567890  or  @mydbchannel
-    DATABASE_CHANNEL: Optional[str] = None
+    DATABASE_CHANNEL: Optional[int] = None
 
     # If True, auto-DM the giveaway winner when the creator closes a giveaway
     # (only works when creator explicitly allows it during setup)
