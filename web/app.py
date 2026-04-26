@@ -290,7 +290,33 @@ async def api_old_giveaways(request: Request):
     _rate_guard(request)
     if not _is_auth(_get_token(request)): raise HTTPException(401)
     from utils.giveaway_archive import get_old_giveaways
+    from utils.db import get_db, is_mongo, get_sqlite_path
     data = await get_old_giveaways(limit=200)
+    # Enrich each row with panel token if one exists
+    try:
+        gid_list = [g["giveaway_id"] for g in data if g.get("giveaway_id")]
+        token_map = {}
+        if is_mongo():
+            db = get_db()
+            panels = await db.panels.find(
+                {"ref_id": {"$in": gid_list}, "panel_type": "giveaway", "is_deleted": False},
+                {"ref_id": 1, "token": 1}
+            ).to_list(None)
+            token_map = {p["ref_id"]: p["token"] for p in panels}
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(get_sqlite_path()) as conn:
+                placeholders = ",".join("?" * len(gid_list))
+                async with conn.execute(
+                    f"SELECT ref_id, token FROM panels WHERE ref_id IN ({placeholders}) AND panel_type='giveaway' AND is_deleted=0",
+                    gid_list
+                ) as cur:
+                    rows = await cur.fetchall()
+                token_map = {r[0]: r[1] for r in rows}
+        for g in data:
+            g["panel_token"] = token_map.get(g.get("giveaway_id"), None)
+    except Exception as e:
+        logger.warning(f"api_old_giveaways panel enrich error: {e}")
     return JSONResponse(data)
 
 
