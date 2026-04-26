@@ -87,8 +87,20 @@ def build_clone_router(clone_token: str, main_bot_username: str) -> Router:
         enabled = clone.get("enabled_commands", DEFAULT_COMMANDS) if clone else DEFAULT_COMMANDS
         return cmd in enabled
 
-    def _powered_by(lang: str, main_uname: str) -> str:
+    async def _powered_by(lang: str, main_uname: str, owner_id: int = 0) -> str:
+        """Return stamp string, or empty string if owner has premium."""
+        if owner_id:
+            try:
+                from utils.premium import is_premium
+                if await is_premium(owner_id):
+                    return ""
+            except Exception:
+                pass
         return t(lang, "powered_by", main_bot=f"@{main_uname}")
+
+    async def _get_owner_id() -> int:
+        clone = await get_clone_bot(clone_token)
+        return clone.get("owner_id", 0) if clone else 0
 
     # ── /start ────────────────────────────────────────────────
 
@@ -112,7 +124,7 @@ def build_clone_router(clone_token: str, main_bot_username: str) -> Router:
         existing = await get_referral_user(clone_token, message.from_user.id)
         lang = existing.get("lang", "en") if existing else "en"
         welcome = clone.get("welcome_message") or DEFAULT_WELCOME_EN
-        footer = _powered_by(lang, main_bot_username)
+        footer = await _powered_by(lang, main_bot_username, await _get_owner_id())
 
         # Channel join gate — check FIRST before anything else
         channel_link = clone.get("channel_link", "")
@@ -229,7 +241,7 @@ def build_clone_router(clone_token: str, main_bot_username: str) -> Router:
 
         clone = await get_clone_bot(clone_token)
         welcome = clone.get("welcome_message") or DEFAULT_WELCOME_EN
-        footer = _powered_by(lang, main_bot_username)
+        footer = await _powered_by(lang, main_bot_username, await _get_owner_id())
         await callback.message.edit_text(
             welcome + footer,
             parse_mode="HTML"
@@ -256,7 +268,7 @@ def build_clone_router(clone_token: str, main_bot_username: str) -> Router:
 
         await callback.answer(t(lang, "verified"), show_alert=True)
         welcome = clone.get("welcome_message") or DEFAULT_WELCOME_EN
-        footer = _powered_by(lang, main_bot_username)
+        footer = await _powered_by(lang, main_bot_username, await _get_owner_id())
 
         # Ask language preference for new users
         existing = await get_referral_user(clone_token, callback.from_user.id)
@@ -282,7 +294,7 @@ def build_clone_router(clone_token: str, main_bot_username: str) -> Router:
         link = f"https://t.me/{me.username}?start={message.from_user.id}"
         clone = await get_clone_bot(clone_token)
         caption = clone.get("referral_caption") or DEFAULT_CAPTION_EN
-        footer = _powered_by(lang, main_bot_username)
+        footer = await _powered_by(lang, main_bot_username, await _get_owner_id())
         await message.answer(
             t(lang, "refer_msg", link=link, caption=caption, count=count) + footer,
             parse_mode="HTML"
@@ -302,7 +314,7 @@ def build_clone_router(clone_token: str, main_bot_username: str) -> Router:
             return
         top = await get_top_referrer(clone_token)
         top_count = top.get("refer_count", 0) if top else 0
-        footer = _powered_by(lang, main_bot_username)
+        footer = await _powered_by(lang, main_bot_username, await _get_owner_id())
         await message.answer(
             t(lang, "mystats", name=user["user_name"],
               count=user.get("refer_count", 0), top=top_count) + footer,
@@ -318,7 +330,7 @@ def build_clone_router(clone_token: str, main_bot_username: str) -> Router:
             await message.answer(t(lang, "cmd_disabled"))
             return
         referred = await get_referred_by_user(clone_token, message.from_user.id)
-        footer = _powered_by(lang, main_bot_username)
+        footer = await _powered_by(lang, main_bot_username, await _get_owner_id())
         if not referred:
             await message.answer(t(lang, "no_referrals") + footer, parse_mode="HTML")
             return
@@ -349,7 +361,7 @@ def build_clone_router(clone_token: str, main_bot_username: str) -> Router:
         for i, u in enumerate(users):
             icon = medals[i] if i < 3 else "▫️"
             lines.append(f"{icon} {i+1}. {u['user_name']} ({u.get('refer_count',0)})")
-        footer = _powered_by(lang, main_bot_username)
+        footer = await _powered_by(lang, main_bot_username, await _get_owner_id())
         await message.answer("\n".join(lines) + footer, parse_mode="HTML")
 
     # ── /all (owner) ──────────────────────────────────────────
