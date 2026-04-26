@@ -1,6 +1,6 @@
 """
 Web server — FastAPI
-Admin panel: /adminpanel/royalisbest/a?b3c
+Admin anel: /adminpanel/royalisbest/a?b3c
 User panel:  /panel/<token>
 """
 import time, secrets, hashlib, json, logging, asyncio
