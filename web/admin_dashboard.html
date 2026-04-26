@@ -329,9 +329,9 @@ input.inp:focus{border-color:var(--accent)}
         <div style="overflow-x:auto">
           <table>
             <thead><tr>
-              <th>ID</th><th>Title</th><th>Created</th><th>Ended</th><th>Votes</th><th>Archived</th><th>Action</th>
+              <th>ID</th><th>Title</th><th>Created</th><th>Ended</th><th>Votes</th><th>Archived</th><th>Panel Link</th><th>Action</th>
             </tr></thead>
-            <tbody id="og-tb"><tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted)">Loading…</td></tr></tbody>
+            <tbody id="og-tb"><tr><td colspan="8" style="text-align:center;padding:28px;color:var(--muted)">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -707,7 +707,7 @@ async function loadOldGiveaways(){
 function renderOldGiveaways(rows){
   const tb=document.getElementById('og-tb');
   if(!rows.length){
-    tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:36px;color:var(--muted)">📭 No archived giveaways yet</td></tr>';
+    tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--muted)">📭 No archived giveaways yet</td></tr>';
     return;
   }
   tb.innerHTML=rows.map(g=>{
@@ -718,13 +718,18 @@ function renderOldGiveaways(rows){
     const ended   = (g.end_date||'').substring(0,10)||'—';
     const votes   = (g.total_votes||0).toLocaleString();
     const arch    = (g.archived_at||'').substring(0,10)||'—';
+    const panelToken = g.panel_token;
+    const panelCell = panelToken
+      ? '<a href="/panel/'+panelToken+'" target="_blank" style="color:#7c6aff;font-size:11px;text-decoration:none">🔗 View Panel</a>'
+      : '<span style="color:var(--muted);font-size:11px">—</span>';
     return '<tr>'
       +'<td><code style="font-size:11px">'+id+'</code></td>'
-      +'<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+title+'</td>'
+      +'<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+title+'</td>'
       +'<td>'+created+'</td>'
       +'<td>'+ended+'</td>'
       +'<td>'+votes+'</td>'
       +'<td>'+arch+'</td>'
+      +'<td>'+panelCell+'</td>'
       +'<td><button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="fetchOldFile(\''+safeId+'\')">⬇ Get File</button></td>'
       +'</tr>';
   }).join('');
