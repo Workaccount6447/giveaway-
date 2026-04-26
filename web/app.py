@@ -96,6 +96,34 @@ _start_time = time.time()
 PANEL_SECRET = "royalisbest"
 PANEL_PARAM  = "b3c"
 
+# ── Rate limiting: {ip: [timestamp, ...]} ─────────────────────
+_rate_store: dict = {}
+_RATE_LIMIT  = 60   # max requests
+_RATE_WINDOW = 60   # per N seconds
+
+def _check_rate_limit(ip: str) -> bool:
+    """Return True if request is allowed, False if rate limited."""
+    now = time.time()
+    hits = _rate_store.get(ip, [])
+    hits = [t for t in hits if now - t < _RATE_WINDOW]
+    if len(hits) >= _RATE_LIMIT:
+        _rate_store[ip] = hits
+        return False
+    hits.append(now)
+    _rate_store[ip] = hits
+    return True
+
+def _get_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+def _rate_guard(request: Request):
+    """Call at start of any public endpoint to enforce rate limit."""
+    if not _check_rate_limit(_get_ip(request)):
+        raise HTTPException(status_code=429, detail="Too many requests — slow down.")
+
 
 def _hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
 def _get_token(request): return request.cookies.get("panel_session")
@@ -181,12 +209,14 @@ async def admin_dashboard(request: Request):
 
 @app.get(f"/adminpanel/{PANEL_SECRET}/api/stats")
 async def api_stats(request: Request):
+    _rate_guard(request)
     if not _is_auth(_get_token(request)): raise HTTPException(401)
     return JSONResponse(await _build_stats())
 
 
 @app.get(f"/adminpanel/{PANEL_SECRET}/api/clones")
 async def api_clones(request: Request):
+    _rate_guard(request)
     if not _is_auth(_get_token(request)): raise HTTPException(401)
     return JSONResponse(await _build_clones())
 
@@ -257,6 +287,7 @@ async def api_giveaways(request: Request):
 
 @app.get(f"/adminpanel/{PANEL_SECRET}/api/old_giveaways")
 async def api_old_giveaways(request: Request):
+    _rate_guard(request)
     if not _is_auth(_get_token(request)): raise HTTPException(401)
     from utils.giveaway_archive import get_old_giveaways
     data = await get_old_giveaways(limit=200)
@@ -305,6 +336,7 @@ async def api_deleteold(request: Request):
 
 @app.get(f"/adminpanel/{PANEL_SECRET}/api/panels")
 async def api_panels(request: Request):
+    _rate_guard(request)
     if not _is_auth(_get_token(request)): raise HTTPException(401)
     return JSONResponse(await _build_panels())
 
@@ -415,26 +447,69 @@ async def api_delete_panel(request: Request):
 # ══════════════════════════════════════════════════════════════
 
 @app.get("/panel/{token}", response_class=HTMLResponse)
-async def user_panel(token: str):
+async def user_panel(token: str, request: Request):
+    _rate_guard(request)
     from models.panel import get_panel
+    from utils.db import get_db, is_mongo, get_sqlite_path
     panel = await get_panel(token)
     if not panel:
         return HTMLResponse(_not_found_html(), status_code=404)
+    # If giveaway panel — check if giveaway still exists in live DB
+    if panel.get("panel_type") == "giveaway":
+        ref_id = panel.get("ref_id")
+        giveaway_exists = False
+        if is_mongo():
+            g = await get_db().giveaways.find_one({"giveaway_id": ref_id}, {"_id": 1})
+            giveaway_exists = g is not None
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(get_sqlite_path()) as conn:
+                async with conn.execute(
+                    "SELECT giveaway_id FROM giveaways WHERE giveaway_id=?", (ref_id,)
+                ) as cur:
+                    giveaway_exists = (await cur.fetchone()) is not None
+        if not giveaway_exists:
+            # Serve page with loading screen — JS will fetch archived data
+            return HTMLResponse(_archived_panel_html(panel), status_code=200)
     data = await _build_panel_data(panel)
     return HTMLResponse(_user_panel_html(panel, data))
 
 
 @app.get("/panel/{token}/api/data")
-async def user_panel_data(token: str):
+async def user_panel_data(token: str, request: Request):
+    _rate_guard(request)
+    # Referer must be our own panel page — blocks external API scraping
+    referer = request.headers.get("referer", "")
+    if token not in referer:
+        raise HTTPException(403, detail="Forbidden")
     from models.panel import get_panel
     panel = await get_panel(token)
     if not panel: raise HTTPException(404)
+    # Check if giveaway archived — fetch from Telegram if needed
+    if panel.get("panel_type") == "giveaway":
+        from utils.db import get_db, is_mongo, get_sqlite_path
+        ref_id = panel.get("ref_id")
+        giveaway_exists = False
+        if is_mongo():
+            g = await get_db().giveaways.find_one({"giveaway_id": ref_id}, {"_id": 1})
+            giveaway_exists = g is not None
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(get_sqlite_path()) as conn:
+                async with conn.execute("SELECT giveaway_id FROM giveaways WHERE giveaway_id=?", (ref_id,)) as cur:
+                    giveaway_exists = (await cur.fetchone()) is not None
+        if not giveaway_exists:
+            archived = await _fetch_archived_giveaway(ref_id)
+            if archived:
+                return JSONResponse({"archived": True, **archived})
+            raise HTTPException(410, detail="Giveaway archived and data unavailable")
     return JSONResponse(await _build_panel_data(panel))
 
 
 @app.post("/panel/{token}/delete")
 async def user_panel_delete(token: str, request: Request):
-    """Anyone can delete — we trust the link is private."""
+    """Panel owner can delete — token in URL is the auth."""
+    _rate_guard(request)
     from models.panel import get_panel, soft_delete_panel
     panel = await get_panel(token)
     if not panel: raise HTTPException(404)
@@ -595,18 +670,54 @@ async def _build_giveaways():
 async def _build_panels():
     from utils.db import get_db, is_mongo, get_sqlite_path
     if is_mongo():
-        panels = await get_db().panels.find({"is_deleted":False}).sort("created_at",-1).limit(100).to_list(None)
-        return [{"token":p["token"],"panel_type":p["panel_type"],"channel_title":p.get("channel_title",""),
-                 "channel_username":p.get("channel_username",""),"created_at":str(p.get("created_at",""))[:10]} for p in panels]
+        db = get_db()
+        panels = await db.panels.find({"is_deleted": False}).sort("created_at", -1).limit(200).to_list(None)
+        # Filter out panels whose giveaway has been archived (deleted from live DB)
+        live_ids = set()
+        giveaway_panels = [p for p in panels if p.get("panel_type") == "giveaway"]
+        refer_panels    = [p for p in panels if p.get("panel_type") != "giveaway"]
+        if giveaway_panels:
+            ref_ids = [p["ref_id"] for p in giveaway_panels]
+            live_docs = await db.giveaways.find(
+                {"giveaway_id": {"$in": ref_ids}}, {"giveaway_id": 1}
+            ).to_list(None)
+            live_ids = {d["giveaway_id"] for d in live_docs}
+        result = []
+        for p in refer_panels:
+            result.append({"token": p["token"], "panel_type": p["panel_type"],
+                           "channel_title": p.get("channel_title", ""),
+                           "channel_username": p.get("channel_username", ""),
+                           "created_at": str(p.get("created_at", ""))[:10]})
+        for p in giveaway_panels:
+            if p["ref_id"] in live_ids:  # only show if still live in DB
+                result.append({"token": p["token"], "panel_type": p["panel_type"],
+                               "channel_title": p.get("channel_title", ""),
+                               "channel_username": p.get("channel_username", ""),
+                               "created_at": str(p.get("created_at", ""))[:10]})
+        result.sort(key=lambda x: x["created_at"], reverse=True)
+        return result[:100]
     import aiosqlite
     async with aiosqlite.connect(get_sqlite_path()) as conn:
         conn.row_factory = aiosqlite.Row
         try:
-            async with conn.execute("SELECT * FROM panels WHERE is_deleted=0 ORDER BY created_at DESC LIMIT 100") as cur:
+            async with conn.execute("SELECT * FROM panels WHERE is_deleted=0 ORDER BY created_at DESC LIMIT 200") as cur:
                 rows = await cur.fetchall()
-            return [{"token":d["token"],"panel_type":d["panel_type"],"channel_title":d.get("channel_title",""),
-                     "channel_username":d.get("channel_username",""),"created_at":str(d.get("created_at",""))[:10]}
-                    for d in [dict(r) for r in rows]]
+            panels = [dict(r) for r in rows]
+            result = []
+            for d in panels:
+                if d.get("panel_type") == "giveaway":
+                    # Check if giveaway still exists in live DB
+                    async with conn.execute(
+                        "SELECT giveaway_id FROM giveaways WHERE giveaway_id=?", (d["ref_id"],)
+                    ) as cur2:
+                        exists = await cur2.fetchone()
+                    if not exists:
+                        continue  # archived — skip from admin panel
+                result.append({"token": d["token"], "panel_type": d["panel_type"],
+                               "channel_title": d.get("channel_title", ""),
+                               "channel_username": d.get("channel_username", ""),
+                               "created_at": str(d.get("created_at", ""))[:10]})
+            return result
         except Exception:
             return []
 
@@ -669,6 +780,64 @@ async def _build_users(page: int = 1, search: str = "") -> dict:
         "pages":    max(1, (total + per_page - 1) // per_page),
     }
 
+async def _fetch_archived_giveaway(giveaway_id: str) -> dict | None:
+    """
+    Download full giveaway JSON from Telegram DATABASE_CHANNEL via file_id.
+    Used when giveaway has been closed and purged from MongoDB.
+    """
+    import io, json as _json
+    from utils.db import get_db, is_mongo, get_sqlite_path
+    from utils.log_utils import get_main_bot
+    try:
+        file_id = None
+        if is_mongo():
+            ref = await get_db().giveaway_archive_refs.find_one({"giveaway_id": giveaway_id})
+            if ref:
+                file_id = ref.get("file_id")
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(get_sqlite_path()) as conn:
+                async with conn.execute(
+                    "SELECT file_id FROM giveaway_archive_refs WHERE giveaway_id=?", (giveaway_id,)
+                ) as cur:
+                    row = await cur.fetchone()
+                if row:
+                    file_id = row[0]
+        if not file_id:
+            return None
+        bot = get_main_bot()
+        if not bot:
+            return None
+        file = await bot.get_file(file_id)
+        buf = io.BytesIO()
+        await bot.download_file(file.file_path, destination=buf)
+        buf.seek(0)
+        archive = _json.loads(buf.read())
+        g = archive.get("giveaway", {})
+        if not g:
+            return None
+        prizes  = g.get("prizes", [])
+        options = g.get("options", [])
+        votes   = g.get("votes", {})
+        if isinstance(prizes, str):  prizes  = _json.loads(prizes)
+        if isinstance(options, str): options = _json.loads(options)
+        if isinstance(votes, str):   votes   = _json.loads(votes)
+        raw_votes = {int(k): v for k, v in votes.items()}
+        votes_data = [{"name": options[i], "votes": raw_votes.get(i, 0)} for i in range(len(options))]
+        votes_data.sort(key=lambda x: x["votes"], reverse=True)
+        return {
+            "options":     options,
+            "prizes":      prizes,
+            "total_votes": g.get("total_votes", 0),
+            "votes_data":  votes_data,
+            "is_active":   False,
+            "title":       g.get("title", giveaway_id),
+        }
+    except Exception as e:
+        logger.warning(f"_fetch_archived_giveaway {giveaway_id}: {e}")
+        return None
+
+
 async def _build_panel_data(panel: dict) -> dict:
     """Build full data for the user panel page."""
     from utils.db import get_db, is_mongo, get_sqlite_path
@@ -678,6 +847,7 @@ async def _build_panel_data(panel: dict) -> dict:
     votes_data, options, prizes, total_votes = [], [], [], 0
     refer_data, top_referrers = [], []
     total_refs = 0
+    is_archived = False
 
     if panel_type == "giveaway":
         if is_mongo():
@@ -1004,3 +1174,172 @@ display:flex;align-items:center;justify-content:center;min-height:100vh;text-ali
 h1{font-size:48px;margin-bottom:12px}p{color:#6b7280}</style></head>
 <body><div><h1>🔍</h1><h2>Panel Not Found</h2>
 <p>This panel link is invalid or has been deleted.</p></div></body></html>"""
+
+
+def _giveaway_ended_html(panel: dict) -> str:
+    title   = panel.get("channel_title", "This Giveaway")
+    created = str(panel.get("created_at", ""))[:10]
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Giveaway Ended</title>
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{background:#07070e;color:#f1f0ff;font-family:'Segoe UI',sans-serif;
+       display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}}
+  .card{{background:#12121f;border:1px solid #2a2a40;border-radius:20px;
+         padding:48px 36px;text-align:center;max-width:420px;width:100%;
+         box-shadow:0 8px 40px rgba(0,0,0,.5)}}
+  .icon{{font-size:64px;margin-bottom:16px}}
+  h1{{font-size:26px;font-weight:700;margin-bottom:10px;color:#f1f0ff}}
+  .subtitle{{color:#6b7280;font-size:15px;line-height:1.6;margin-bottom:28px}}
+  .badge{{display:inline-block;background:#1e1e30;border:1px solid #3a3a55;
+          border-radius:999px;padding:6px 18px;font-size:13px;color:#a0aec0;margin-bottom:8px}}
+  .info{{background:#0f0f1c;border-radius:12px;padding:16px 20px;
+         font-size:13px;color:#6b7280;margin-top:24px;border:1px solid #1e1e30}}
+  .info strong{{color:#a0aec0}}
+</style></head>
+<body><div class="card">
+  <div class="icon">🏁</div>
+  <h1>Giveaway Has Ended</h1>
+  <p class="subtitle">The analytics for <strong>{title}</strong> are no longer available
+  because this giveaway has been closed and its data archived.</p>
+  <span class="badge">📦 Archived</span>
+  <div class="info">
+    Created: <strong>{created}</strong><br>
+    Status: <strong>Closed &amp; Archived</strong>
+  </div>
+</div></body></html>"""
+
+
+def _archived_panel_html(panel: dict) -> str:
+    """Page with loading screen that fetches archived data from Telegram via JS."""
+    title   = panel.get("channel_title", "Giveaway")
+    token   = panel.get("token", "")
+    created = str(panel.get("created_at", ""))[:10]
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title} — Archived Analytics</title>
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{background:#07070e;color:#f1f0ff;font-family:'Segoe UI',sans-serif;min-height:100vh;padding:24px}}
+
+  /* ── Loading screen ── */
+  #loading{{display:flex;flex-direction:column;align-items:center;justify-content:center;
+            min-height:80vh;gap:16px;text-align:center}}
+  .spinner{{width:52px;height:52px;border:4px solid #2a2a40;border-top-color:#7c6aff;
+            border-radius:50%;animation:spin 0.9s linear infinite}}
+  @keyframes spin{{to{{transform:rotate(360deg)}}}}
+  #loading h2{{font-size:20px;color:#a0aec0}}
+  #loading p{{font-size:13px;color:#4b5563}}
+
+  /* ── Error screen ── */
+  #error{{display:none;align-items:center;justify-content:center;min-height:80vh;
+          text-align:center;flex-direction:column;gap:12px}}
+  #error .icon{{font-size:48px}}
+  #error h2{{font-size:20px;color:#f87171}}
+  #error p{{color:#6b7280;font-size:14px}}
+
+  /* ── Data screen ── */
+  #data{{display:none}}
+  .header{{margin-bottom:28px}}
+  .header h1{{font-size:24px;font-weight:700}}
+  .header .meta{{color:#6b7280;font-size:13px;margin-top:4px}}
+  .badge{{display:inline-block;background:#1e1e30;border:1px solid #7c6aff44;
+          border-radius:999px;padding:4px 14px;font-size:12px;color:#7c6aff;margin-top:8px}}
+  .card{{background:#12121f;border:1px solid #2a2a40;border-radius:16px;padding:24px;margin-bottom:20px}}
+  .card h3{{font-size:15px;color:#a0aec0;margin-bottom:16px;text-transform:uppercase;
+            letter-spacing:.05em;font-weight:600}}
+  .stat-row{{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px}}
+  .stat{{background:#12121f;border:1px solid #2a2a40;border-radius:12px;
+         padding:20px;flex:1;min-width:120px;text-align:center}}
+  .stat .val{{font-size:28px;font-weight:700;color:#7c6aff}}
+  .stat .lbl{{font-size:12px;color:#6b7280;margin-top:4px}}
+  .bar-row{{margin-bottom:12px}}
+  .bar-label{{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}}
+  .bar-label .name{{color:#e5e7eb;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+  .bar-label .count{{color:#7c6aff;font-weight:600}}
+  .bar-bg{{background:#1e1e30;border-radius:999px;height:10px;overflow:hidden}}
+  .bar-fill{{height:10px;border-radius:999px;background:linear-gradient(90deg,#7c6aff,#a78bfa);
+             transition:width 0.6s ease}}
+  .prizes{{display:flex;flex-wrap:wrap;gap:10px}}
+  .prize{{background:#1a1a2e;border:1px solid #2a2a40;border-radius:10px;
+          padding:10px 16px;font-size:14px;color:#e5e7eb}}
+</style></head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <h2>Loading archived data…</h2>
+  <p>Fetching results from the database. This may take a moment.</p>
+</div>
+
+<div id="error">
+  <div class="icon">⚠️</div>
+  <h2>Could not load data</h2>
+  <p id="error-msg">The archived data could not be retrieved. Please try again later.</p>
+</div>
+
+<div id="data">
+  <div class="header">
+    <h1 id="d-title">{title}</h1>
+    <div class="meta">Created: {created}</div>
+    <span class="badge">📦 Archived Giveaway</span>
+  </div>
+  <div class="stat-row">
+    <div class="stat"><div class="val" id="d-votes">—</div><div class="lbl">Total Votes</div></div>
+    <div class="stat"><div class="val" id="d-opts">—</div><div class="lbl">Options</div></div>
+    <div class="stat"><div class="val" id="d-prizes">—</div><div class="lbl">Prizes</div></div>
+  </div>
+  <div class="card">
+    <h3>🏆 Vote Results</h3>
+    <div id="d-bars"></div>
+  </div>
+  <div class="card">
+    <h3>🎁 Prizes</h3>
+    <div class="prizes" id="d-prize-list"></div>
+  </div>
+</div>
+
+<script>
+(async () => {{
+  try {{
+    const res = await fetch('/panel/{token}/api/data');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+
+    // Populate stats
+    document.getElementById('d-votes').textContent = d.total_votes ?? 0;
+    const vd = d.votes_data || [];
+    document.getElementById('d-opts').textContent = vd.length;
+    document.getElementById('d-prizes').textContent = (d.prizes || []).length;
+
+    // Vote bars
+    const maxV = vd.length ? Math.max(...vd.map(x => x.votes), 1) : 1;
+    const bars = document.getElementById('d-bars');
+    bars.innerHTML = vd.length ? vd.map(o => `
+      <div class="bar-row">
+        <div class="bar-label">
+          <span class="name">${{o.name}}</span>
+          <span class="count">${{o.votes}}</span>
+        </div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${{Math.round(o.votes/maxV*100)}}%"></div></div>
+      </div>`).join('') : '<p style="color:#6b7280;font-size:14px">No votes recorded.</p>';
+
+    // Prizes
+    const pl = document.getElementById('d-prize-list');
+    pl.innerHTML = (d.prizes || []).length
+      ? (d.prizes || []).map(p => `<div class="prize">🎁 ${{p}}</div>`).join('')
+      : '<p style="color:#6b7280;font-size:14px">No prizes listed.</p>';
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('data').style.display = 'block';
+  }} catch(e) {{
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-msg').textContent = e.message || 'Unknown error';
+    document.getElementById('error').style.display = 'flex';
+  }}
+}})();
+</script>
+</body></html>"""
