@@ -15,7 +15,6 @@ from models.giveaway import (
 )
 from utils.poll_renderer import render_giveaway_message, build_vote_keyboard, build_verify_join_keyboard
 from utils.premium import is_premium
-from utils.log_utils import check_force_join
 
 router = Router()
 
@@ -81,6 +80,7 @@ def _parse_end_time(text: str):
 
 @router.callback_query(F.data == "giveaway_cancel")
 async def handle_cancel(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"[GIVEAWAY] handle_cancel: user={callback.from_user.id} cancelled giveaway creation")
     await callback.answer()
     await state.clear()
     await callback.message.edit_text(
@@ -94,24 +94,16 @@ async def handle_cancel(callback: CallbackQuery, state: FSMContext):
 
 @router.message(Command("creategiveaway"))
 @router.callback_query(F.data == "menu:create_giveaway")
+@router.callback_query(F.data == "menu:create_giveaway_poll")
 async def start_create_giveaway(event, state: FSMContext, bot: Bot):
     msg    = event if isinstance(event, Message) else event.message
     user   = event.from_user
     if isinstance(event, CallbackQuery):
         await event.answer()
 
-    # Force-join check
-    is_member, channel_link = await check_force_join(bot, user.id)
-    if not is_member:
-        from handlers.start import _force_join_keyboard
-        await msg.answer(
-            "🔒 <b>Access Restricted</b>\n\nJoin our channel first to use this feature.",
-            parse_mode="HTML",
-            reply_markup=_force_join_keyboard(channel_link),
-        )
-        return
-
+    logger.info(f"[GIVEAWAY] start_create_giveaway triggered by user={user.id} username=@{user.username}")
     await state.set_state(GiveawayForm.channel_id)
+    logger.info(f"[GIVEAWAY] State set to channel_id for user={user.id}")
     await msg.answer(
         "🗳 <b>Create a Giveaway Poll</b>\n\n"
         "<b>Step 1 of 5 — Channel</b>\n\n"
@@ -126,62 +118,70 @@ async def start_create_giveaway(event, state: FSMContext, bot: Bot):
 @router.message(GiveawayForm.channel_id)
 async def form_channel_id(message: Message, state: FSMContext, bot: Bot):
     channel = message.text.strip()
+    user_id = message.from_user.id
+    logger.info(f"[GIVEAWAY] form_channel_id: user={user_id} entered channel={channel}")
+
     if not channel.startswith("@") and not channel.lstrip("-").isdigit():
+        logger.warning(f"[GIVEAWAY] form_channel_id: invalid format from user={user_id} input={channel}")
         await message.answer(
             "❌ Please enter a valid channel like <code>@mychannel</code>",
             parse_mode="HTML",
             reply_markup=_cancel_keyboard(),
         )
         return
-    try:
-        chat   = await bot.get_chat(channel)
-        me     = await bot.get_me()
-        member = await bot.get_chat_member(chat.id, me.id)
-        if member.status not in ("administrator", "creator"):
-            await message.answer(
-                f"❌ <b>Bot is not an admin in that channel!</b>\n\n"
-                f"Please make <b>@{me.username}</b> an admin in <b>{channel}</b>, then try again.",
-                parse_mode="HTML",
-                reply_markup=_cancel_keyboard(),
-            )
-            return
-        # Sender admin check — wrapped separately so it never crashes the flow
-        try:
-            sender = await bot.get_chat_member(chat.id, message.from_user.id)
-            sender_status = str(sender.status).lower()
-            if "administrator" not in sender_status and "creator" not in sender_status:
-                await message.answer(
-                    "🔒 <b>Security check failed.</b>\n\n"
-                    "Only channel admins can create giveaways for that channel.",
-                    parse_mode="HTML",
-                    reply_markup=_cancel_keyboard(),
-                )
-                return
-        except Exception:
-            pass  # Can't verify sender, allow anyway
 
-        await state.update_data(
-            channel_id=str(chat.id),
-            channel_username=channel,
-            channel_title=chat.title,
-        )
+    me = await bot.get_me()
+    logger.info(f"[GIVEAWAY] form_channel_id: bot is @{me.username}, fetching chat={channel}")
+
+    # Step 1: fetch chat
+    try:
+        chat = await bot.get_chat(channel)
+        logger.info(f"[GIVEAWAY] form_channel_id: chat found id={chat.id} title={chat.title}")
     except Exception as e:
-        bot_me = await bot.get_me()
+        logger.error(f"[GIVEAWAY] form_channel_id: get_chat failed for {channel} — {type(e).__name__}: {e}")
         await message.answer(
-            f"❌ <b>Couldn't access that channel.</b>\n\n"
-            f"Please make <b>@{bot_me.username}</b> an admin and try again.\n\n"
+            f"❌ <b>Channel not found.</b>\n\n"
+            f"Make sure <code>{channel}</code> is correct and the channel is public.\n\n"
             f"<i>Error: {e}</i>",
             parse_mode="HTML",
             reply_markup=_cancel_keyboard(),
         )
         return
 
+    # Step 2: check bot is admin — str() handles aiogram v3 enums safely
+    try:
+        member = await bot.get_chat_member(chat.id, me.id)
+        status = str(member.status).lower()
+        logger.info(f"[GIVEAWAY] form_channel_id: bot status in channel={channel} → {status}")
+        is_admin = "administrator" in status or "creator" in status
+    except Exception as e:
+        logger.error(f"[GIVEAWAY] form_channel_id: get_chat_member failed — {type(e).__name__}: {e}")
+        is_admin = False
+
+    if not is_admin:
+        logger.warning(f"[GIVEAWAY] form_channel_id: bot is NOT admin in {channel}")
+        await message.answer(
+            f"❌ <b>Bot is not an admin in that channel!</b>\n\n"
+            f"Go to your channel → Administrators → Add <b>@{me.username}</b> as admin, then try again.",
+            parse_mode="HTML",
+            reply_markup=_cancel_keyboard(),
+        )
+        return
+
+    # Step 3: save and proceed
+    logger.info(f"[GIVEAWAY] form_channel_id: ✅ verified channel={channel} chat_id={chat.id} for user={user_id}")
+    await state.update_data(
+        channel_id=str(chat.id),
+        channel_username=channel,
+        channel_title=chat.title,
+    )
     await state.set_state(GiveawayForm.title)
+    logger.info(f"[GIVEAWAY] form_channel_id: state → GiveawayForm.title for user={user_id}")
     await message.answer(
         "✅ <b>Channel verified!</b>\n\n"
         "<b>Step 2 of 5 — Giveaway Title</b>\n\n"
         "Enter the <b>title</b> for your giveaway:\n"
-        "Example: <i>Dominos Gift Card Giveaway</i>",
+        "Example: <i>iPhone 15 Giveaway</i>",
         parse_mode="HTML",
         reply_markup=_cancel_keyboard(),
     )
@@ -189,6 +189,7 @@ async def form_channel_id(message: Message, state: FSMContext, bot: Bot):
 
 @router.message(GiveawayForm.title)
 async def form_title(message: Message, state: FSMContext):
+    logger.info(f"[GIVEAWAY] form_title: user={message.from_user.id} title={message.text.strip()[:50]}")
     await state.update_data(title=message.text.strip())
     await state.set_state(GiveawayForm.prizes)
     await message.answer(
@@ -204,6 +205,7 @@ async def form_title(message: Message, state: FSMContext):
 
 @router.message(GiveawayForm.prizes)
 async def form_prizes(message: Message, state: FSMContext):
+    logger.info(f"[GIVEAWAY] form_prizes: user={message.from_user.id}")
     prizes = [p.strip() for p in message.text.strip().split("\n") if p.strip()]
     if not prizes:
         await message.answer(
@@ -225,6 +227,7 @@ async def form_prizes(message: Message, state: FSMContext):
 
 @router.message(GiveawayForm.options)
 async def form_options(message: Message, state: FSMContext):
+    logger.info(f"[GIVEAWAY] form_options: user={message.from_user.id}")
     options = [o.strip() for o in message.text.strip().split("\n") if o.strip()]
     if len(options) < 2:
         await message.answer(
@@ -338,6 +341,7 @@ async def _show_preview(msg: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("giveaway_confirm:"))
 async def handle_confirm(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    logger.info(f"[GIVEAWAY] handle_confirm: user={callback.from_user.id} choice={callback.data}")
     await callback.answer()
     choice = callback.data.split(":")[1]
 
