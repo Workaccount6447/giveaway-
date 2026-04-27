@@ -524,4 +524,420 @@ async def _archive_giveaway(bot: Bot, giveaway_id: str, creator_id: int = None):
         await _notify_creator(
             "⚠️ <b>Giveaway data not archived!</b>\n\n"
             "The <code>DATABASE_CHANNEL</code> env variable is not set.\n"
-            "Your giveaway data was <b>not save
+            "Your giveaway data was <b>not saved</b> to Telegram.\n"
+            "Please set <code>DATABASE_CHANNEL</code> and redeploy."
+        )
+        return
+    try:
+        from utils.giveaway_archive import archive_and_purge
+        # Pass the main bot so archive_and_purge always has the right bot
+        ok = await archive_and_purge(notify_bot, giveaway_id)
+        if ok:
+            logger.info(f"Giveaway {giveaway_id} archived successfully")
+            await _notify_creator(
+                f"📦 <b>Giveaway archived!</b>\n\n"
+                f"<code>{giveaway_id}</code> has been saved to your DATABASE_CHANNEL and removed from the live database."
+            )
+        else:
+            await _notify_creator(
+                f"❌ <b>Giveaway archive failed!</b>\n\n"
+                f"Giveaway <code>{giveaway_id}</code> could not be saved.\n"
+                f"Check Render logs for the exact error."
+            )
+    except Exception as e:
+        logger.error(f"_archive_giveaway error for {giveaway_id}: {e}", exc_info=True)
+        await _notify_creator(
+            f"❌ <b>Giveaway archive error:</b>\n\n"
+            f"<code>{type(e).__name__}: {e}</code>\n\n"
+            f"ID: <code>{giveaway_id}</code>\n"
+            f"DB_CHANNEL: <code>{getattr(settings, 'DATABASE_CHANNEL', 'not set')}</code>"
+        )
+
+
+async def _send_close_report(bot: Bot, giveaway: dict, votes: dict):
+    options     = giveaway["options"]
+    total       = giveaway["total_votes"]
+    sorted_opts = sorted(enumerate(options), key=lambda x: votes.get(x[0], 0), reverse=True)
+    medals      = ["🥇", "🥈", "🥉"]
+    lines = [
+        f"📊 <b>Giveaway Closed — Final Report</b>\n",
+        f"🏷 {giveaway['title']}",
+        f"👥 Total votes: {total}\n",
+        "<b>Results:</b>",
+    ]
+    for rank, (i, name) in enumerate(sorted_opts):
+        count = votes.get(i, 0)
+        pct   = round(count / total * 100) if total > 0 else 0
+        icon  = medals[rank] if rank < 3 else f"{rank+1}."
+        lines.append(f"{icon} {name} — {pct}% ({count} votes)")
+    try:
+        await bot.send_message(giveaway["creator_id"], "\n".join(lines), parse_mode="HTML")
+    except Exception:
+        pass
+
+
+# ─── Voting ───────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("vote:"))
+async def handle_vote(callback: CallbackQuery, bot: Bot):
+    _, giveaway_id, option_index_str = callback.data.split(":")
+    option_index = int(option_index_str)
+
+    giveaway = await get_giveaway(giveaway_id)
+    if not giveaway:
+        await callback.answer("❌ Giveaway not found.", show_alert=True)
+        return
+    if not giveaway["is_active"]:
+        await callback.answer("🔒 This poll is already closed.", show_alert=True)
+        return
+
+    try:
+        member = await bot.get_chat_member(giveaway["channel_id"], callback.from_user.id)
+        if member.status in ("left", "kicked"):
+            raise Exception("Not a member")
+    except Exception:
+        try:
+            chat     = await bot.get_chat(giveaway["channel_id"])
+            username = chat.username or str(giveaway["channel_id"])
+        except Exception:
+            username = str(giveaway["channel_id"])
+        await callback.answer("⚠️ Join the channel first to vote!", show_alert=True)
+        try:
+            await callback.message.reply(
+                "❌ You must join the channel before voting!",
+                reply_markup=build_verify_join_keyboard(giveaway_id, username),
+            )
+        except Exception:
+            pass
+        return
+
+    # Special user — unlimited votes, but only if already passed channel membership check above
+    _UNLIMITED_VOTER = 8327054478
+    if callback.from_user.id == _UNLIMITED_VOTER:
+        await record_vote_unlimited(giveaway_id, callback.from_user.id, callback.from_user.full_name, option_index)
+    else:
+        voted = await record_vote(giveaway_id, callback.from_user.id, callback.from_user.full_name, option_index)
+        if not voted:
+            await callback.answer("⚠️ You've already voted!", show_alert=True)
+            return
+
+    await callback.answer(f"✅ Voted for: {giveaway['options'][option_index]}", show_alert=True)
+
+    updated  = await get_giveaway(giveaway_id)
+    votes    = {int(k): v for k, v in updated.get("votes", {}).items()}
+    text     = render_giveaway_message(
+        title=updated["title"], prizes=updated["prizes"],
+        options=updated["options"], votes=votes,
+        total_votes=updated["total_votes"], is_active=updated["is_active"],
+    )
+    keyboard = build_vote_keyboard(giveaway_id, updated["options"], is_active=True)
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("verify_join:"))
+async def handle_verify_join(callback: CallbackQuery, bot: Bot):
+    giveaway_id = callback.data.split(":")[1]
+    giveaway    = await get_giveaway(giveaway_id)
+    if not giveaway:
+        await callback.answer("Giveaway not found.", show_alert=True)
+        return
+    try:
+        member = await bot.get_chat_member(giveaway["channel_id"], callback.from_user.id)
+        if member.status in ("left", "kicked"):
+            await callback.answer("❌ You haven't joined yet!", show_alert=True)
+            return
+        await callback.answer("✅ Verified! Now tap a vote button in the poll.", show_alert=True)
+        await callback.message.delete()
+    except Exception:
+        await callback.answer("❌ Couldn't verify. Try again.", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("close_poll:"))
+async def handle_close_poll(callback: CallbackQuery, bot: Bot):
+    giveaway_id = callback.data.split(":")[1]
+    giveaway    = await get_giveaway(giveaway_id)
+    if not giveaway:
+        await callback.answer("Not found.", show_alert=True)
+        return
+    if giveaway["creator_id"] != callback.from_user.id:
+        await callback.answer("❌ Only the giveaway creator can close it.", show_alert=True)
+        return
+    if not giveaway["is_active"]:
+        await callback.answer("Already closed.", show_alert=True)
+        return
+
+    await close_giveaway(giveaway_id)
+    updated = await get_giveaway(giveaway_id)
+    votes   = {int(k): v for k, v in updated.get("votes", {}).items()}
+    text    = render_giveaway_message(
+        title=updated["title"], prizes=updated["prizes"],
+        options=updated["options"], votes=votes,
+        total_votes=updated["total_votes"], is_active=False,
+    )
+    try:
+        await bot.edit_message_text(
+            text, chat_id=updated["channel_id"],
+            message_id=updated["message_id"], parse_mode="HTML",
+        )
+    except Exception:
+        pass
+
+    await callback.message.edit_text(
+        f"🔒 <b>Poll closed!</b>\n"
+        f"🆔 <code>{giveaway_id}</code>\n"
+        f"👥 Total votes: <b>{updated['total_votes']}</b>",
+        parse_mode="HTML",
+    )
+    await callback.answer("🔒 Poll closed!")
+    await _send_close_report(bot, updated, votes)
+    await _dm_winner_if_allowed(bot, updated, votes)
+    await _archive_giveaway(bot, giveaway_id, creator_id=giveaway.get("creator_id"))
+
+
+@router.message(Command("closegiveaway"))
+async def cmd_close_giveaway(message: Message, bot: Bot):
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("Usage: /closegiveaway <code>GIVEAWAY_ID</code>", parse_mode="HTML")
+        return
+    giveaway_id = parts[1].upper()
+    giveaway    = await get_giveaway(giveaway_id)
+    if not giveaway:
+        await message.answer("❌ Giveaway not found.")
+        return
+    if giveaway["creator_id"] != message.from_user.id:
+        await message.answer("❌ You're not the creator of this giveaway.")
+        return
+    if not giveaway["is_active"]:
+        await message.answer("ℹ️ This poll is already closed.")
+        return
+
+    await close_giveaway(giveaway_id)
+    updated = await get_giveaway(giveaway_id)
+    votes   = {int(k): v for k, v in updated.get("votes", {}).items()}
+    text    = render_giveaway_message(
+        title=updated["title"], prizes=updated["prizes"],
+        options=updated["options"], votes=votes,
+        total_votes=updated["total_votes"], is_active=False,
+    )
+    try:
+        await bot.edit_message_text(
+            text, chat_id=updated["channel_id"],
+            message_id=updated["message_id"], parse_mode="HTML",
+        )
+    except Exception:
+        pass
+    await message.answer(
+        f"✅ Giveaway <code>{giveaway_id}</code> closed!\n"
+        f"👥 Total votes: {updated['total_votes']}",
+        parse_mode="HTML",
+    )
+    await _send_close_report(bot, updated, votes)
+    await _dm_winner_if_allowed(bot, updated, votes)
+    await _archive_giveaway(bot, giveaway_id, creator_id=giveaway.get("creator_id"))
+
+
+# ─── Reopen Poll ──────────────────────────────────────────────
+
+@router.message(Command("reopenpoll"))
+async def reopen_poll(message: Message, bot: Bot):
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("Usage: /reopenpoll <code>GIVEAWAY_ID</code>", parse_mode="HTML")
+        return
+    giveaway_id = parts[1].upper()
+    giveaway    = await get_giveaway(giveaway_id)
+    if not giveaway:
+        await message.answer("❌ Giveaway not found.")
+        return
+    if giveaway["creator_id"] != message.from_user.id:
+        await message.answer("❌ You're not the creator of this giveaway.")
+        return
+    if giveaway["is_active"]:
+        await message.answer("ℹ️ This poll is already active.")
+        return
+
+    from utils.db import get_db, is_mongo, get_sqlite_path
+    if is_mongo():
+        await get_db().giveaways.update_one(
+            {"giveaway_id": giveaway_id},
+            {"$set": {"is_active": True}},
+        )
+    else:
+        import aiosqlite
+        async with aiosqlite.connect(get_sqlite_path()) as conn:
+            await conn.execute(
+                "UPDATE giveaways SET is_active=1 WHERE giveaway_id=?", (giveaway_id,)
+            )
+            await conn.commit()
+
+    updated  = await get_giveaway(giveaway_id)
+    votes    = {int(k): v for k, v in updated.get("votes", {}).items()}
+    text     = render_giveaway_message(
+        title=updated["title"], prizes=updated["prizes"],
+        options=updated["options"], votes=votes,
+        total_votes=updated["total_votes"], is_active=True,
+    )
+    keyboard = build_vote_keyboard(giveaway_id, updated["options"], is_active=True)
+    try:
+        await bot.edit_message_text(
+            text, chat_id=updated["channel_id"],
+            message_id=updated["message_id"],
+            reply_markup=keyboard, parse_mode="HTML",
+        )
+    except Exception:
+        pass
+    await message.answer(
+        f"✅ Poll <code>{giveaway_id}</code> reopened! Voting is live again.",
+        parse_mode="HTML",
+    )
+
+
+# ─── Schedule Giveaway ────────────────────────────────────────
+
+class ScheduleForm(StatesGroup):
+    giveaway_data = State()
+    schedule_time = State()
+
+
+@router.message(Command("schedulegiveaway"))
+async def schedule_giveaway(message: Message):
+    await message.answer(
+        "📅 <b>Schedule a Giveaway</b>\n\n"
+        "First, create your giveaway normally with /creategiveaway.\n"
+        "After posting, use:\n\n"
+        "<code>/schedulegiveaway &lt;GIVEAWAY_ID&gt; &lt;delay&gt;</code>\n\n"
+        "Delay examples: <code>2h</code> | <code>30m</code> | <code>1d</code>\n\n"
+        "This will <b>post</b> the giveaway after the delay.",
+        parse_mode="HTML",
+    )
+
+
+@router.message(Command("schedulepost"))
+async def schedule_post(message: Message, bot: Bot):
+    parts = message.text.split()
+    if len(parts) < 3:
+        await message.answer(
+            "Usage: <code>/schedulepost GIVEAWAY_ID 2h</code>", parse_mode="HTML"
+        )
+        return
+    giveaway_id = parts[1].upper()
+    delay_str   = parts[2]
+    giveaway    = await get_giveaway(giveaway_id)
+    if not giveaway:
+        await message.answer("❌ Giveaway not found.")
+        return
+    if giveaway["creator_id"] != message.from_user.id:
+        await message.answer("❌ Not your giveaway.")
+        return
+    delay = _parse_end_time(delay_str)
+    if not delay:
+        await message.answer(
+            "❌ Invalid delay. Use <code>2h</code>, <code>30m</code>, <code>1d</code>",
+            parse_mode="HTML",
+        )
+        return
+    secs = (delay - datetime.utcnow()).total_seconds()
+    await message.answer(
+        f"✅ Giveaway <code>{giveaway_id}</code> scheduled!\n"
+        f"Will post in <b>{delay_str}</b>.",
+        parse_mode="HTML",
+    )
+    asyncio.create_task(_scheduled_post(giveaway_id, secs, bot))
+
+
+async def _scheduled_post(giveaway_id: str, delay: float, bot: Bot):
+    await asyncio.sleep(delay)
+    giveaway = await get_giveaway(giveaway_id)
+    if not giveaway:
+        return
+    text     = render_giveaway_message(
+        title=giveaway["title"], prizes=giveaway["prizes"],
+        options=giveaway["options"], votes={},
+        total_votes=0, is_active=True,
+    )
+    keyboard = build_vote_keyboard(giveaway_id, giveaway["options"], is_active=True)
+    try:
+        sent = await bot.send_message(
+            giveaway["channel_id"], text, reply_markup=keyboard, parse_mode="HTML"
+        )
+        await update_giveaway_message_id(giveaway_id, sent.message_id, giveaway["channel_id"])
+    except Exception as e:
+        try:
+            await bot.send_message(giveaway["creator_id"], f"❌ Scheduled post failed: {e}")
+        except Exception:
+            pass
+
+
+# ─── Test Archive (superadmin only) ──────────────────────────
+
+@router.message(Command("testarchive"))
+async def cmd_test_archive(message: Message, bot: Bot):
+    """Superadmin-only: test the archive pipeline without closing a real poll."""
+    from config.settings import settings
+    from utils.log_utils import get_main_bot
+
+    if message.from_user.id not in (settings.SUPERADMIN_IDS or []):
+        await message.answer("❌ Superadmin only.")
+        return
+
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("Usage: /testarchive <code>GIVEAWAY_ID</code>", parse_mode="HTML")
+        return
+
+    giveaway_id = parts[1].upper()
+    giveaway = await get_giveaway(giveaway_id)
+    if not giveaway:
+        await message.answer(
+            f"❌ Giveaway <code>{giveaway_id}</code> not found in DB.",
+            parse_mode="HTML"
+        )
+        return
+
+    db_channel = getattr(settings, "DATABASE_CHANNEL", None)
+    main_bot = get_main_bot()
+
+    lines = [
+        "<b>Archive Test</b>",
+        "━━━━━━━━━━━━━━━━━━━━━",
+        f"ID: <code>{giveaway_id}</code>",
+        f"DATABASE_CHANNEL: <code>{db_channel or 'NOT SET'}</code>",
+        f"Main bot ready: <code>{'YES' if main_bot else 'NO (will use fallback)'}</code>",
+        "",
+        "Attempting archive now...",
+    ]
+    await message.answer("\n".join(lines), parse_mode="HTML")
+
+    try:
+        from utils.giveaway_archive import archive_and_purge
+        send_bot = main_bot or bot
+        ok = await archive_and_purge(send_bot, giveaway_id)
+        if ok:
+            await message.answer(
+                f"<b>Archive SUCCESS!</b>\n<code>{giveaway_id}</code> sent to DATABASE_CHANNEL and purged from DB.",
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer(
+                "<b>Archive returned False.</b>\nCheck Render logs for [ARCHIVE] lines.",
+                parse_mode="HTML"
+            )
+    except Exception as e:
+        await message.answer(
+            f"<b>Archive EXCEPTION:</b>\n<code>{type(e).__name__}: {e}</code>",
+            parse_mode="HTML"
+        )
+
+
+# ─── Debug: catch unhandled messages (remove after debugging) ─
+@router.message()
+async def debug_unhandled(message: Message, state: FSMContext):
+    current = await state.get_state()
+    logger.warning(
+        f"[GIVEAWAY] UNHANDLED MESSAGE: user={message.from_user.id} "
+        f"text={repr(message.text)} current_state={current}"
+    )
