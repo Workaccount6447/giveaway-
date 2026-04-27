@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RoyalityBots — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#05050d;--s1:#09091a;--s2:#0d0d1f;--s3:#12122a;--s4:#181830;
+  --border:#1a1a38;--border2:#252548;
+  --accent:#7c3aed;--a2:#9d5cf0;--a3:#c4b5fd;--a4:#ede9fe;
+  --gold:#f59e0b;--gold2:#fcd34d;
+  --green:#10b981;--red:#f43f5e;--yellow:#f59e0b;--blue:#3b82f6;--cyan:#06b6d4;--pink:#ec4899;
+  --text:#f0eeff;--muted:#7b7a9d;--muted2:#4a4a72;
+  --shadow:0 0 0 1px rgba(124,58,237,.08),0 8px 32px rgba(0,0,0,.6);
+  --shadow-lg:0 0 0 1px rgba(124,58,237,.12),0 24px 64px rgba(0,0,0,.8);
+}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;
+  display:flex;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 5% 0%,rgba(124,58,237,.12),transparent 55%),
+    radial-gradient(ellipse 40% 30% at 95% 80%,rgba(6,182,212,.07),transparent 50%);
+}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+
+/* ── Sidebar ── */
+.sidebar{width:230px;min-width:230px;height:100vh;background:var(--s1);border-right:1px solid var(--border);display:flex;flex-direction:column;position:relative;z-index:100}
+.sidebar::after{content:'';position:absolute;top:0;right:-1px;width:1px;height:100%;background:linear-gradient(180deg,transparent,rgba(124,58,237,.4),transparent);pointer-events:none}
+
+.logo-area{padding:24px 20px 20px;border-bottom:1px solid var(--border);position:relative;overflow:hidden}
+.logo-area::before{content:'';position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.3),transparent);pointer-events:none}
+.logo-crown{font-size:26px;margin-bottom:8px;filter:drop-shadow(0 0 8px rgba(245,158,11,.6))}
+.logo-name{font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--a3),#e0d7ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.3px}
+.logo-sub{font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;margin-top:3px}
+.admin-chip{display:inline-flex;align-items:center;gap:5px;margin-top:8px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.25);border-radius:5px;padding:2px 8px;font-size:9px;color:var(--a3);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+
+.nav{flex:1;padding:12px 8px;overflow-y:auto}
+.nav-sec{font-size:9px;color:var(--muted2);letter-spacing:.12em;text-transform:uppercase;padding:12px 12px 5px;font-weight:700}
+.nav-item{
+  display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;
+  color:var(--muted);font-size:12.5px;font-weight:500;cursor:pointer;
+  transition:all .18s;margin-bottom:2px;user-select:none;position:relative;
+}
+.nav-item:hover{background:rgba(124,58,237,.1);color:var(--a3)}
+.nav-item.active{background:rgba(124,58,237,.2);color:var(--a3);font-weight:600}
+.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:60%;background:var(--accent);border-radius:0 3px 3px 0}
+.nav-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0}
+.nav-badge{margin-left:auto;background:rgba(244,63,94,.2);color:var(--red);border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.nav-badge.gold{background:rgba(245,158,11,.2);color:var(--gold)}
+.nav-badge.green{background:rgba(16,185,129,.2);color:var(--green)}
+
+.sb-bottom{padding:14px 16px;border-top:1px solid var(--border);flex-shrink:0}
+.uptime-pill{display:flex;align-items:center;gap:8px;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.14);border-radius:9px;padding:9px 12px;margin-bottom:10px}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.uptime-val{font-size:11px;color:var(--green);font-family:'JetBrains Mono',monospace;font-weight:500}
+.logout{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);cursor:pointer;padding:6px 4px;border-radius:6px;transition:color .15s;text-decoration:none}
+.logout:hover{color:var(--red)}
+
+/* ── Main ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ── Topbar ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 28px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,rgba(9,9,26,1),rgba(9,9,26,.95));
+  flex-shrink:0;backdrop-filter:blur(8px);
+}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.topbar h1{font-size:17px;font-weight:700;letter-spacing:-.3px}
+.topbar p{font-size:11px;color:var(--muted);margin-top:2px}
+.topbar-btns{display:flex;gap:8px;align-items:center}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:9px;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .18s;border:none;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--a2);color:var(--a3);background:rgba(124,58,237,.08)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--a2));color:#fff;box-shadow:0 4px 16px rgba(124,58,237,.3)}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,58,237,.4)}
+.btn-danger{background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);color:var(--red)}
+.btn-danger:hover{background:rgba(244,63,94,.16)}
+.btn-success{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:var(--green)}
+.btn-success:hover{background:rgba(16,185,129,.16)}
+.btn-gold{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);color:var(--gold)}
+.btn-gold:hover{background:rgba(245,158,11,.18)}
+.btn-sm{padding:5px 11px;font-size:11px;border-radius:7px;gap:4px}
+.btn-xs{padding:3px 8px;font-size:10px;border-radius:5px;gap:3px}
+
+/* ── Content ── */
+.content{flex:1;overflow-y:auto;padding:24px 28px}
+.tab{display:none}.tab.active{display:block;animation:fadeUp .25s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Stat grid ── */
+.stat-grid{display:grid;gap:12px;margin-bottom:16px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+
+.stat{
+  background:var(--s2);border:1px solid var(--border);border-radius:14px;
+  padding:18px 20px;position:relative;overflow:hidden;
+  transition:border-color .2s,transform .18s,box-shadow .18s;
+  cursor:default;
+}
+.stat:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:var(--shadow)}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(157,92,240,.5),transparent)}
+.stat-glow{position:absolute;top:-30px;right:-20px;width:80px;height:80px;border-radius:50%;filter:blur(25px);opacity:.18;pointer-events:none}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:6px}
+.stat-val{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:-.03em;line-height:1}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.stat-ico{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:30px;opacity:.06}
+.stat-trend{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;margin-top:5px;padding:2px 7px;border-radius:4px}
+.trend-up{background:rgba(16,185,129,.12);color:var(--green)}
+.trend-dn{background:rgba(244,63,94,.12);color:var(--red)}
+
+/* ── Panels/Cards ── */
+.panel{background:var(--s2);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color .2s}
+.panel:hover{border-color:var(--border2)}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
+.ph h2{font-size:13px;font-weight:700;letter-spacing:-.2px}
+.ph-actions{display:flex;gap:7px;align-items:center}
+.badge-cnt{font-size:10px;background:rgba(124,58,237,.18);color:var(--a3);border-radius:6px;padding:2px 9px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.pb{padding:18px 20px}
+.ch-wrap{height:185px;position:relative}
+
+/* ── Tables ── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);font-weight:700;border-bottom:1px solid var(--border);background:rgba(0,0,0,.2)}
+td{padding:11px 16px;border-bottom:1px solid rgba(26,26,56,.6);vertical-align:middle;font-size:12px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(124,58,237,.04)}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;letter-spacing:.03em}
+.bg{background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.18)}
+.br{background:rgba(244,63,94,.1);color:var(--red);border:1px solid rgba(244,63,94,.18)}
+.by{background:rgba(245,158,11,.1);color:var(--yellow);border:1px solid rgba(245,158,11,.18)}
+.bb{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.18)}
+.bm{background:rgba(107,114,128,.08);color:var(--muted);border:1px solid rgba(107,114,128,.12)}
+.bgold{background:rgba(245,158,11,.12);color:var(--gold);border:1px solid rgba(245,158,11,.25)}
+.dot{width:5px;height:5px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dg{background:var(--green)}.dr{background:var(--red)}.dm{background:var(--muted2)}.dy{background:var(--yellow)}.do{background:var(--gold)}
+
+/* ── Form inputs ── */
+.inp{background:var(--s3);border:1px solid var(--border2);border-radius:9px;padding:9px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:12.5px;outline:none;transition:border-color .2s,box-shadow .2s;width:100%}
+.inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
+.inp::placeholder{color:var(--muted2)}
+textarea.inp{resize:vertical;min-height:90px;line-height:1.5}
+.form-row{display:flex;gap:10px;align-items:center}
+.form-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
+.form-group{margin-bottom:14px}
+select.inp{cursor:pointer}
+
+/* ── Premium-specific ── */
+.premium-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(252,211,77,.1));
+  border:1px solid rgba(245,158,11,.3);border-radius:6px;
+  padding:3px 10px;font-size:10px;font-weight:700;color:var(--gold2);
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.premium-row{background:rgba(245,158,11,.03)!important}
+.premium-row:hover td{background:rgba(245,158,11,.05)!important}
+
+/* ── Bot API card ── */
+.api-card{
+  background:var(--s3);border:1px solid var(--border2);border-radius:12px;
+  padding:16px 18px;margin-bottom:10px;
+  display:flex;align-items:center;gap:14px;
+  transition:border-color .18s,transform .18s;
+}
+.api-card:hover{border-color:var(--accent);transform:translateX(2px)}
+.api-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.api-info{flex:1;min-width:0}
+.api-name{font-size:13px;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.api-meta{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.api-actions{display:flex;gap:6px;flex-shrink:0}
+
+/* ── Bot user modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex!important}
+.modal-box{
+  background:linear-gradient(180deg,var(--s1),var(--s2));
+  border:1px solid var(--border2);border-radius:18px;
+  box-shadow:var(--shadow-lg);
+  width:min(740px,95vw);max-height:88vh;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.modal-head{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-head h3{font-size:16px;font-weight:700;margin:0}
+.modal-close{background:rgba(255,255,255,.05);border:1px solid var(--border2);color:var(--muted);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.modal-close:hover{background:rgba(244,63,94,.1);border-color:rgba(244,63,94,.3);color:var(--red)}
+.modal-search{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-shrink:0}
+.modal-body{overflow-y:auto;flex:1}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--s2);border:1px solid var(--border2);border-radius:12px;padding:12px 18px;font-size:13px;font-weight:500;box-shadow:0 16px 48px rgba(0,0,0,.6);transform:translateY(16px) scale(.95);opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;max-width:340px}
+.toast.show{transform:translateY(0) scale(1);opacity:1}
+.toast.ok{border-color:rgba(16,185,129,.35);color:var(--green)}
+.toast.err{border-color:rgba(244,63,94,.35);color:var(--red)}
+.toast.warn{border-color:rgba(245,158,11,.35);color:var(--yellow)}
+
+/* ── Broadcast ── */
+.bc-ta{width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:10px;padding:14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;resize:vertical;min-height:110px;outline:none;transition:border-color .2s;line-height:1.5}
+.bc-ta:focus{border-color:var(--accent)}
+
+/* ── Section header ── */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+
+/* ── Giveaway grid ── */
+.grid-2col{display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:14px}
+.grid-3col{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+
+/* ── Quick action ── */
+.quick-action{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.02);border:1px solid var(--border);cursor:pointer;transition:all .15s;font-size:12.5px;font-weight:500;color:var(--muted);width:100%;text-align:left}
+.quick-action:hover{background:rgba(124,58,237,.08);border-color:rgba(124,58,237,.3);color:var(--a3)}
+
+/* ── Premium tier cards ── */
+.tier-card{background:var(--s3);border-radius:12px;padding:18px;border:1px solid var(--border2);transition:all .2s;position:relative;overflow:hidden}
+.tier-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.tier-card.free::before{background:var(--muted)}
+.tier-card.basic::before{background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.tier-card.pro::before{background:linear-gradient(90deg,var(--accent),var(--a2))}
+.tier-card.vip::before{background:linear-gradient(90deg,var(--gold),var(--gold2))}
+.tier-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.tier-name{font-size:13px;font-weight:700;margin-bottom:4px}
+.tier-count{font-size:26px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-bottom:6px}
+.tier-desc{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* ── Log entry ── */
+.log-entry{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(26,26,56,.5)}
+.log-entry:last-child{border-bottom:none}
+.log-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.log-msg{font-size:12px;line-height:1.5}
+.log-time{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
+
+/* ── Responsive ── */
+@media(max-width:1200px){.g4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:960px){.g3,.grid-2col,.grid-3col{grid-template-columns:1fr}}
+@media(max-width:768px){
+  .sidebar{position:fixed;left:-230px;top:0;bottom:0;z-index:200;transition:left .25s;height:100dvh}
+  .sidebar.open{left:0;box-shadow:12px 0 40px rgba(0,0,0,.5)}
+  .main{margin-left:0!important}
+  .topbar,.content{padding:14px 16px}
+  .g4,.g3{grid-template-columns:1fr 1fr}
+  .hamburger{display:flex!important}
+  .grid-2col,.grid-3col{grid-template-columns:1fr}
+}
+@media(max-width:480px){.g4,.g3,.g2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar" id="sidebar">
+  <div class="logo-area">
+    <div class="logo-crown">👑</div>
+    <div class="logo-name">RoyalityBots</div>
+    <div class="logo-sub">Admin Dashboard</div>
+    <div class="admin-chip">⚡ Super Admin</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-sec">Core</div>
+    <div class="nav-item active" onclick="show('overview',this)"><span class="nav-icon">📊</span>Overview</div>
+    <div class="nav-item" onclick="show('clones',this)"><span class="nav-icon">🤖</span>Clone Bots</div>
+    <div class="nav-item" onclick="show('giveaways',this)"><span class="nav-icon">🗳</span>Giveaways</div>
+    <div class="nav-item" onclick="show('panels',this)"><span class="nav-icon">🔗</span>User Panels</div>
+    <div class="nav-item" onclick="show('oldgiveaways',this)"><span class="nav-icon">📦</span>Old Giveaways</div>
+    <div class="nav-sec">User Management</div>
+    <div class="nav-item" onclick="show('users',this)"><span class="nav-icon">👥</span>All Users</div>
+    <div class="nav-item" onclick="show('premium',this)"><span class="nav-icon">⭐</span>Premium Users <span class="nav-badge gold">VIP</span></div>
+    <div class="nav-item" onclick="show('botusers',this)"><span class="nav-icon">🤖</span>Bot Users API</div>
+    <div class="nav-sec">Tools</div>
+    <div class="nav-item" onclick="show('broadcast',this)"><span class="nav-icon">📢</span>Broadcast</div>
+    <div class="nav-item" onclick="show('botapi',this)"><span class="nav-icon">⚙️</span>Bot API Config</div>
+    <div class="nav-item" onclick="show('logs',this)"><span class="nav-icon">📋</span>System Logs <span class="nav-badge">Live</span></div>
+  </nav>
+  <div class="sb-bottom">
+    <div class="uptime-pill">
+      <div class="pulse"></div>
+      <div style="flex:1">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:1px">Uptime</div>
+        <div class="uptime-val" id="uptime">—</div>
+      </div>
+    </div>
+    <a href="/adminpanel/royalisbest/logout" class="logout">← Sign out</a>
+  </div>
+</aside>
+
+<!-- ── Overlay for mobile ── -->
+<div id="sb-overlay" onclick="closeSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;backdrop-filter:blur(2px)"></div>
+
+<!-- ── Main ── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="hamburger btn btn-ghost btn-sm" onclick="toggleSidebar()" style="display:none">☰</button>
+      <div>
+        <h1 id="tab-title">Overview</h1>
+        <p id="tab-sub">Live stats and system health</p>
+      </div>
+    </div>
+    <div class="topbar-btns">
+      <div style="display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.15);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--green)">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite"></span>
+        <span class="uptime-val" id="uptime-topbar" style="font-size:11px">Live</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="loadAll()">⟳ Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="show('broadcast',document.querySelector('.nav-item:nth-child(11)'))">📢 Broadcast</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ═══ OVERVIEW ═══ -->
+    <div class="tab active" id="tab-overview">
+      <div class="stat-grid g4" style="margin-bottom:12px">
+        <div class="stat">
+          <div class="stat-glow" style="background:#7c3aed"></div>
+          <div class="stat-lbl">Clone Bots</div>
+          <div class="stat-val" id="s1">—</div>
+          <div class="stat-sub">active instances</div>
+          <div class="stat-ico">🤖</div>
+        </div>
+        <div class="stat">
+          <div class="stat-glow" style="background:#06b6d4"></div>
+          <div class="stat-lbl">Total Users</div>
+          <div class="stat-val" id="s2">—</div>
+          <div class="stat-sub">all bots combined</div>
+          <div class="stat-ico">👥</div>
+        </div>
+        <div class="stat">
+          <div class="stat-glow" style="background:#10b981"></div>
+          <div class="stat-lbl">Active Polls</div>
+          <div class="stat-val" id="s3">—</div>
+          <div class="stat-sub">live right now</div>
+          <div class="stat-ico">🗳</div>
+        </div>
+        <div class="stat">
+          <div class="stat-glow" style="background:#f59e0b"></div>
+          <div class="stat-lbl">Total Votes</div>
+          <div class="stat-val" id="s4">—</div>
+          <div class="stat-sub">all time</div>
+          <div class="stat-ico">✅</div>
+        </div>
+      </div>
+      <div class="stat-grid g4" style="margin-bottom:12px">
+        <div class="stat" style="border-color:rgba(16,185,129,.2);background:rgba(16,185,129,.03)">
+          <div class="stat-lbl" style="color:var(--green)">🟢 Live Main Users</div>
+          <div class="stat-val" id="bs-users" style="color:var(--green)">—</div>
+          <div style="display:flex;align-items:center;gap:5px;margin-top:5px">
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s infinite"></span>
+            <span style="font-size:9px;color:var(--green);font-weight:700;letter-spacing:.05em">LIVE · updates 10s</span>
+          </div>
+        </div>
+        <div class="stat" style="border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.03)">
+          <div class="stat-glow" style="background:var(--gold)"></div>
+          <div class="stat-lbl" style="color:var(--gold)">⭐ Premium Users</div>
+          <div class="stat-val" id="premium-total" style="color:var(--gold)">—</div>
+          <div class="stat-sub">active subscriptions</div>
+          <div class="stat-ico">⭐</div>
+        </div>
+        <div class="stat" style="border-color:rgba(16,185,129,.15)">
+          <div class="stat-lbl" style="color:var(--green)">Live Giveaways</div>
+          <div class="stat-val" id="bs-live" style="color:var(--green)">—</div>
+          <div class="stat-ico">🟢</div>
+        </div>
+        <div class="stat">
+          <div class="stat-lbl">Banned</div>
+          <div class="stat-val" id="bs-banned" style="color:var(--red)">—</div>
+          <div class="stat-sub">users banned</div>
+          <div class="stat-ico">🚫</div>
+        </div>
+      </div>
+      <div class="stat-grid g3" style="margin-bottom:16px">
+        <div class="stat">
+          <div class="stat-lbl">Total Giveaways</div><div class="stat-val" id="s5">—</div><div class="stat-ico">🎁</div>
+        </div>
+        <div class="stat">
+          <div class="stat-lbl">User Panels</div><div class="stat-val" id="s6">—</div><div class="stat-ico">🔗</div>
+        </div>
+        <div class="stat">
+          <div class="stat-lbl">Banned Bots</div><div class="stat-val" id="s7">—</div><div class="stat-ico">🚫</div>
+        </div>
+      </div>
+
+      <div class="grid-2col">
+        <div class="panel">
+          <div class="ph"><h2>📈 Daily User Joins</h2></div>
+          <div class="pb"><div class="ch-wrap"><canvas id="joinChart"></canvas></div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>⚡ Bot Usage</h2></div>
+          <div class="pb"><div class="ch-wrap"><canvas id="usageChart"></canvas></div></div>
+        </div>
+      </div>
+
+      <div class="grid-3col">
+        <div class="panel">
+          <div class="ph"><h2>🏆 Top Clone Bots</h2></div>
+          <div style="padding:8px 0" id="top-clones"><div style="padding:0 18px 12px;color:var(--muted);font-size:12px">Loading...</div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>🗳 Recent Giveaways</h2></div>
+          <div style="padding:8px 0" id="recent-ga"><div style="padding:0 18px 12px;color:var(--muted);font-size:12px">Loading...</div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>⚙️ Quick Actions</h2></div>
+          <div class="pb" style="display:flex;flex-direction:column;gap:7px">
+            <button class="quick-action" onclick="show('broadcast',document.querySelector('.nav-item:nth-child(11)'))">📢 <span>Send Broadcast</span></button>
+            <button class="quick-action" onclick="show('premium',document.querySelector('.nav-item:nth-child(8)'))">⭐ <span>Manage Premium</span></button>
+            <button class="quick-action" onclick="show('botusers',document.querySelector('.nav-item:nth-child(9)'))">🤖 <span>Bot Users API</span></button>
+            <button class="quick-action" onclick="show('clones',document.querySelector('.nav-item:nth-child(3)'))">🤖 <span>Manage Clones</span></button>
+            <button class="quick-action" onclick="show('botapi',document.querySelector('.nav-item:nth-child(12)'))">⚙️ <span>API Config</span></button>
+            <button class="quick-action" style="color:var(--red);border-color:rgba(244,63,94,.2)" onclick="loadAll()">⟳ <span>Refresh All Data</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CLONE BOTS ═══ -->
+    <div class="tab" id="tab-clones">
+      <div class="panel">
+        <div class="ph"><h2>🤖 All Clone Bots</h2><div class="ph-actions"><span class="badge-cnt" id="clone-cnt">—</span></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Bot</th><th>Owner</th><th>Users</th><th>Channel</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="clones-tb"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clone Bot Users Modal -->
+    <div class="modal-overlay" id="cu-modal">
+      <div class="modal-box">
+        <div class="modal-head">
+          <div><h3>👥 Bot Users</h3><span id="cu-subtitle" style="font-size:11px;color:var(--muted)">Fetching live…</span></div>
+          <button class="modal-close" onclick="closeCuModal()">✕</button>
+        </div>
+        <div class="modal-search">
+          <input id="cu-search" type="text" placeholder="Search by name or user ID…" oninput="filterCuUsers()" class="inp" style="flex:1">
+          <span id="cu-count" style="font-size:12px;color:var(--muted);white-space:nowrap">—</span>
+        </div>
+        <div class="modal-body">
+          <table style="width:100%">
+            <thead style="position:sticky;top:0;background:var(--s1);z-index:1">
+              <tr>
+                <th>#</th><th>Name</th><th>User ID</th><th>Refers</th><th>Joined</th>
+              </tr>
+            </thead>
+            <tbody id="cu-tb"></tbody>
+          </table>
+          <div id="cu-loading" style="text-align:center;padding:40px;color:var(--muted);font-size:13px">⏳ Fetching live data…</div>
+          <div id="cu-empty" style="display:none;text-align:center;padding:40px;color:var(--muted)">No users found.</div>
+        </div>
+        <div class="modal-footer">
+          <span id="cu-total-label" style="font-size:12px;color:var(--muted)"></span>
+          <button class="btn btn-ghost btn-sm" onclick="closeCuModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ GIVEAWAYS ═══ -->
+    <div class="tab" id="tab-giveaways">
+      <div class="panel">
+        <div class="ph"><h2>🗳 All Giveaways</h2><span class="badge-cnt" id="ga-cnt">—</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Title</th><th>Channel</th><th>Votes</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="ga-tb"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Participants Modal -->
+    <div class="modal-overlay" id="part-modal">
+      <div class="modal-box">
+        <div class="modal-head">
+          <div><h3>👥 Giveaway Participants</h3><span id="part-subtitle" style="font-size:11px;color:var(--muted)">Loading live data…</span></div>
+          <button class="modal-close" onclick="closeParticipants()">✕</button>
+        </div>
+        <div class="modal-search">
+          <input id="part-search" type="text" placeholder="Search by name or ID…" oninput="filterParticipants()" class="inp" style="flex:1">
+          <span id="part-count" style="font-size:12px;color:var(--muted);white-space:nowrap">—</span>
+        </div>
+        <div class="modal-body">
+          <table style="width:100%">
+            <thead style="position:sticky;top:0;background:var(--s1);z-index:1">
+              <tr><th>#</th><th>User</th><th>User ID</th><th>Refers 🔗</th><th>Voted At</th></tr>
+            </thead>
+            <tbody id="part-tb"></tbody>
+          </table>
+          <div id="part-loading" style="text-align:center;padding:40px;color:var(--muted)">⏳ Fetching live data…</div>
+          <div id="part-empty" style="display:none;text-align:center;padding:40px;color:var(--muted)">No participants found.</div>
+        </div>
+        <div class="modal-footer">
+          <span style="font-size:12px;color:var(--muted)">Live data from Telegram API</span>
+          <button class="btn btn-ghost btn-sm" onclick="closeParticipants()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PANELS ═══ -->
+    <div class="tab" id="tab-panels">
+      <div class="panel">
+        <div class="ph"><h2>🔗 User Analytics Panels</h2><span class="badge-cnt" id="panel-cnt">—</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Token</th><th>Type</th><th>Channel</th><th>Created</th><th>Link</th><th>Actions</th></tr></thead>
+            <tbody id="panels-tb"><tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ OLD GIVEAWAYS ═══ -->
+    <div class="tab" id="tab-oldgiveaways">
+      <div class="panel">
+        <div class="ph" style="flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <h2>📦 Old Giveaways</h2>
+            <span class="badge-cnt" id="og-cnt">—</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="og-search" placeholder="Search by title or ID…" oninput="filterOldGiveaways()" class="inp" style="width:220px">
+            <button class="btn btn-ghost btn-sm" onclick="loadOldGiveaways()">↺ Refresh</button>
+            <button class="btn btn-danger btn-sm" onclick="showDeleteOldModal()">🗑 Delete Old…</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Title</th><th>Created</th><th>Ended</th><th>Votes</th><th>Archived</th><th>Panel Link</th><th>Actions</th></tr></thead>
+            <tbody id="og-tb"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Delete Old Modal -->
+      <div id="og-delete-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+        <div style="background:var(--s1);border:1px solid var(--border2);border-radius:16px;padding:32px;max-width:420px;width:90%;box-shadow:var(--shadow-lg)">
+          <h3 style="margin:0 0 12px;font-size:17px">🗑 Delete Archive Records</h3>
+          <p style="color:var(--muted);font-size:13px;margin-bottom:18px;line-height:1.6">Removes metadata older than N months.<br><strong style="color:var(--text)">JSON files in DATABASE_CHANNEL are NOT deleted.</strong></p>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+            <label class="form-label" style="margin:0;white-space:nowrap">Months older than:</label>
+            <input type="number" id="og-months-input" min="1" value="3" class="inp" style="width:80px">
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-ghost" onclick="closeDeleteOldModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmDeleteOld()">Delete Records</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ALL USERS ═══ -->
+    <div class="tab" id="tab-users">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <input class="inp" id="user-search" type="text" placeholder="Search by name, username or Telegram ID…" style="flex:1;min-width:220px" oninput="debounceUserSearch()">
+        <button class="btn btn-ghost btn-sm" onclick="loadUsers(1)">🔍 Search</button>
+        <button class="btn btn-success btn-sm" onclick="exportUsersCSV()">⬇️ Export CSV</button>
+        <span style="font-size:12px;color:var(--muted)" id="user-total"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.18);border-radius:12px;padding:12px 16px;margin-bottom:14px">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2s infinite"></span>
+        <span style="font-size:12px;color:var(--muted)">Main bot users (live count):</span>
+        <span style="font-size:22px;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace" id="live-user-count">—</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto">updates every 10s</span>
+      </div>
+      <div style="display:flex;gap:9px;margin-bottom:16px">
+        <input class="inp" id="ban-id" type="text" placeholder="Quick ban: enter Telegram User ID directly" style="flex:1">
+        <button class="btn btn-danger" onclick="doBanUser()">🚫 Ban ID</button>
+      </div>
+      <div class="panel">
+        <div class="ph"><h2>👥 Bot Users</h2><span class="badge-cnt" id="user-cnt">—</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>First Name</th><th>Last Name</th><th>Username</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="users-tb"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div id="user-pages" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;flex-wrap:wrap"></div>
+      </div>
+    </div>
+
+    <!-- ═══ PREMIUM USERS ═══ -->
+    <div class="tab" id="tab-premium">
+      <!-- VIP Overview -->
+      <div class="stat-grid g4" style="margin-bottom:20px">
+        <div class="tier-card vip" style="grid-column:span 1">
+          <div class="tier-name" style="color:var(--gold)">⭐ VIP Users</div>
+          <div class="tier-count" id="tier-vip" style="color:var(--gold)">—</div>
+          <div class="tier-desc">Active VIP subscriptions</div>
+        </div>
+        <div class="stat" style="padding:18px 20px">
+          <div class="stat-glow" style="background:var(--green)"></div>
+          <div class="stat-lbl" style="color:var(--green)">Active</div>
+          <div class="stat-val" id="vip-active" style="color:var(--green);font-size:24px">—</div>
+          <div class="stat-sub">currently active</div>
+          <div class="stat-ico">✅</div>
+        </div>
+        <div class="stat" style="padding:18px 20px">
+          <div class="stat-glow" style="background:var(--yellow)"></div>
+          <div class="stat-lbl" style="color:var(--yellow)">Expiring Soon</div>
+          <div class="stat-val" id="vip-expiring" style="color:var(--yellow);font-size:24px">—</div>
+          <div class="stat-sub">within 7 days</div>
+          <div class="stat-ico">⏳</div>
+        </div>
+        <div class="stat" style="padding:18px 20px">
+          <div class="stat-glow" style="background:var(--red)"></div>
+          <div class="stat-lbl" style="color:var(--red)">Expired</div>
+          <div class="stat-val" id="vip-expired" style="color:var(--red);font-size:24px">—</div>
+          <div class="stat-sub">needs renewal</div>
+          <div class="stat-ico">❌</div>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <h2 style="font-size:14px;font-weight:700">⭐ Premium Subscribers</h2>
+          <span class="badge-cnt" id="prem-cnt">—</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input class="inp" id="prem-search" placeholder="Search premium users…" style="width:220px" oninput="filterPremiumUsers()">
+          <select class="inp" id="prem-filter" onchange="filterPremiumUsers()" style="width:150px">
+            <option value="">All Users</option>
+            <option value="active">Active VIP</option>
+            <option value="expiring">Expiring Soon</option>
+            <option value="expired">Expired</option>
+          </select>
+          <button class="btn btn-gold btn-sm" onclick="openGrantPremiumModal()">+ Grant Premium</button>
+          <button class="btn btn-success btn-sm" onclick="exportPremiumCSV()">⬇️ Export</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>User</th><th>Telegram ID</th><th>Plan</th><th>Bots</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="premium-tb">
+              <!-- Demo data — replace with API fetch -->
+              <tr class="premium-row">
+                <td><strong>@priya_win</strong><div style="font-size:10px;color:var(--muted)">Priya Sharma</div></td>
+                <td class="mono" style="user-select:all">589234710</td>
+                <td><span class="badge bgold"><span class="dot do"></span>VIP</span></td>
+                <td style="font-family:'JetBrains Mono',monospace">∞</td>
+                <td><span style="color:var(--green);font-size:11px;font-family:'JetBrains Mono',monospace">2027-01-15</span></td>
+                <td><span class="badge bg"><span class="dot dg"></span>Active</span></td>
+                <td><div style="display:flex;gap:5px">
+                  <button class="btn btn-ghost btn-xs" onclick="toast('📋 ID copied','ok')">📋</button>
+                  <button class="btn btn-gold btn-xs" onclick="editPremium(589234710)">✏️ Edit</button>
+                  <button class="btn btn-danger btn-xs" onclick="revokePremium(589234710,'priya_win')">🚫 Revoke</button>
+                </div></td>
+              </tr>
+              <tr class="premium-row">
+                <td><strong>@amit_rox</strong><div style="font-size:10px;color:var(--muted)">Amit Kumar</div></td>
+                <td class="mono" style="user-select:all">391827465</td>
+                <td><span class="badge bgold"><span class="dot do"></span>VIP</span></td>
+                <td style="font-family:'JetBrains Mono',monospace">∞</td>
+                <td><span style="color:var(--green);font-size:11px;font-family:'JetBrains Mono',monospace">2026-12-01</span></td>
+                <td><span class="badge bg"><span class="dot dg"></span>Active</span></td>
+                <td><div style="display:flex;gap:5px">
+                  <button class="btn btn-ghost btn-xs" onclick="toast('📋 ID copied','ok')">📋</button>
+                  <button class="btn btn-gold btn-xs" onclick="editPremium(391827465)">✏️ Edit</button>
+                  <button class="btn btn-danger btn-xs" onclick="revokePremium(391827465,'amit_rox')">🚫 Revoke</button>
+                </div></td>
+              </tr>
+              <tr class="premium-row">
+                <td><strong>@sona_1999</strong><div style="font-size:10px;color:var(--muted)">Sona Verma</div></td>
+                <td class="mono" style="user-select:all">748291034</td>
+                <td><span class="badge bgold"><span class="dot do"></span>VIP</span></td>
+                <td style="font-family:'JetBrains Mono',monospace">∞</td>
+                <td><span style="color:var(--yellow);font-size:11px;font-family:'JetBrains Mono',monospace">2026-05-03</span></td>
+                <td><span class="badge by"><span class="dot dy"></span>Expiring</span></td>
+                <td><div style="display:flex;gap:5px">
+                  <button class="btn btn-ghost btn-xs" onclick="toast('📋 ID copied','ok')">📋</button>
+                  <button class="btn btn-gold btn-xs" onclick="editPremium(748291034)">✏️ Renew</button>
+                  <button class="btn btn-danger btn-xs" onclick="revokePremium(748291034,'sona_1999')">🚫 Revoke</button>
+                </div></td>
+              </tr>
+              <tr class="premium-row">
+                <td><strong>@rehan_b</strong><div style="font-size:10px;color:var(--muted)">Rehan Baig</div></td>
+                <td class="mono" style="user-select:all">283746192</td>
+                <td><span class="badge bgold"><span class="dot do"></span>VIP</span></td>
+                <td style="font-family:'JetBrains Mono',monospace">∞</td>
+                <td><span style="color:var(--red);font-size:11px;font-family:'JetBrains Mono',monospace">2026-04-10</span></td>
+                <td><span class="badge br"><span class="dot dr"></span>Expired</span></td>
+                <td><div style="display:flex;gap:5px">
+                  <button class="btn btn-ghost btn-xs" onclick="toast('📋 ID copied','ok')">📋</button>
+                  <button class="btn btn-gold btn-xs" onclick="editPremium(283746192)">✏️ Renew</button>
+                  <button class="btn btn-danger btn-xs" onclick="revokePremium(283746192,'rehan_b')">🚫 Revoke</button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="prem-pages" style="display:flex;gap:6px;align-items:center;justify-content:center;padding:14px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- Grant Premium Modal -->
+      <div class="modal-overlay" id="grant-modal">
+        <div class="modal-box" style="max-width:480px">
+          <div class="modal-head">
+            <h3>⭐ Grant Premium Access</h3>
+            <button class="modal-close" onclick="closeGrantPremiumModal()">✕</button>
+          </div>
+          <div class="pb" style="padding:22px 24px">
+            <div class="form-group">
+              <div class="form-label">Telegram User ID</div>
+              <input class="inp" id="grant-uid" placeholder="Enter Telegram user ID (e.g. 589234710)">
+            </div>
+            <div class="form-group">
+              <div class="form-label">Premium Tier</div>
+              <select class="inp" id="grant-tier">
+                <option value="vip">⭐ VIP</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <div class="form-label">Expiry Date</div>
+              <input class="inp" id="grant-expiry" type="date">
+            </div>
+            <div class="form-group">
+              <div class="form-label">Note (optional)</div>
+              <input class="inp" id="grant-note" placeholder="e.g. Manual grant, promo code XYZ">
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+              <button class="btn btn-ghost" onclick="closeGrantPremiumModal()">Cancel</button>
+              <button class="btn btn-gold" onclick="doGrantPremium()">⭐ Grant Premium</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ BOT USERS API ═══ -->
+    <div class="tab" id="tab-botusers">
+      <div class="grid-2col" style="align-items:start">
+        <div>
+          <!-- Live user fetch -->
+          <div class="panel" style="margin-bottom:14px">
+            <div class="ph"><h2>🔍 Fetch Bot Users via API</h2></div>
+            <div class="pb">
+              <div class="form-group">
+                <div class="form-label">Bot Token</div>
+                <input class="inp" id="bu-token" type="password" placeholder="Enter bot token (e.g. 123456:ABC-DEF...)">
+              </div>
+              <div class="form-group">
+                <div class="form-label">Fetch Type</div>
+                <select class="inp" id="bu-type">
+                  <option value="all">All Users</option>
+                  <option value="active">Active (last 7 days)</option>
+                  <option value="banned">Banned Users</option>
+                  <option value="premium">Premium Only</option>
+                </select>
+              </div>
+              <div class="form-row" style="gap:8px">
+                <button class="btn btn-primary" style="flex:1" onclick="fetchBotUsers()">⚡ Fetch Live Users</button>
+                <button class="btn btn-ghost" onclick="clearBotUsers()">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- API stats result -->
+          <div class="panel" id="bu-result-card" style="display:none">
+            <div class="ph"><h2>📊 API Fetch Results</h2><span class="badge-cnt" id="bu-result-cnt">—</span></div>
+            <div class="pb">
+              <div class="stat-grid g2" style="margin-bottom:12px">
+                <div class="stat" style="padding:14px">
+                  <div class="stat-lbl">Total Fetched</div>
+                  <div class="stat-val" id="bu-total" style="font-size:20px">—</div>
+                </div>
+                <div class="stat" style="padding:14px">
+                  <div class="stat-lbl">Banned</div>
+                  <div class="stat-val" id="bu-banned" style="font-size:20px;color:var(--red)">—</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-success btn-sm" onclick="exportBotUsersCSV()">⬇️ Export CSV</button>
+                <button class="btn btn-ghost btn-sm" onclick="copyBotUsersJSON()">📋 Copy JSON</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <!-- Registered bots quick-view -->
+          <div class="panel" style="margin-bottom:14px">
+            <div class="ph"><h2>🤖 Registered Bot Tokens</h2>
+              <button class="btn btn-ghost btn-sm" onclick="toast('Opening token manager…','ok')">+ Add</button>
+            </div>
+            <div class="pb" style="display:flex;flex-direction:column;gap:8px" id="bot-tokens-list">
+              <div class="api-card">
+                <div class="api-status-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+                <div class="api-info">
+                  <div class="api-name">@RoyalReferBot</div>
+                  <div class="api-meta">Last sync: 2 mins ago · 1,240 users</div>
+                </div>
+                <div class="api-actions">
+                  <button class="btn btn-ghost btn-xs" onclick="toast('Syncing…','ok')">⟳</button>
+                  <button class="btn btn-success btn-xs" onclick="fetchWithToken('royalreferbot')">Fetch</button>
+                </div>
+              </div>
+              <div class="api-card">
+                <div class="api-status-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+                <div class="api-info">
+                  <div class="api-name">@GiveBotOfficial</div>
+                  <div class="api-meta">Last sync: 15 mins ago · 892 users</div>
+                </div>
+                <div class="api-actions">
+                  <button class="btn btn-ghost btn-xs" onclick="toast('Syncing…','ok')">⟳</button>
+                  <button class="btn btn-success btn-xs" onclick="fetchWithToken('givebotofficial')">Fetch</button>
+                </div>
+              </div>
+              <div class="api-card" style="border-color:rgba(244,63,94,.2)">
+                <div class="api-status-dot" style="background:var(--red)"></div>
+                <div class="api-info">
+                  <div class="api-name">@TestBot_dev</div>
+                  <div class="api-meta" style="color:var(--red)">Offline · token invalid</div>
+                </div>
+                <div class="api-actions">
+                  <button class="btn btn-danger btn-xs" onclick="toast('Bot offline or token revoked','err')">⚠️</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bulk actions -->
+          <div class="panel">
+            <div class="ph"><h2>⚡ Bulk Actions</h2></div>
+            <div class="pb" style="display:flex;flex-direction:column;gap:8px">
+              <button class="quick-action" onclick="toast('Syncing all bots…','ok')">🔄 <span>Sync All Bot Users</span></button>
+              <button class="quick-action" onclick="toast('Sending test message…','ok')">📨 <span>Send Test Message to Bot</span></button>
+              <button class="quick-action" onclick="toast('Exporting all…','ok')">⬇️ <span>Export All Bot Users CSV</span></button>
+              <button class="quick-action" style="color:var(--red);border-color:rgba(244,63,94,.2)" onclick="toast('Purging inactive…','warn')">🗑 <span>Purge Inactive Users (>90d)</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bot Users Table -->
+      <div class="panel" id="bu-table-card" style="display:none;margin-top:0">
+        <div class="ph">
+          <h2>📋 Fetched Users</h2>
+          <div class="ph-actions">
+            <input class="inp" id="bu-search" placeholder="Filter results…" style="width:200px" oninput="filterBotUsers()">
+            <span class="badge-cnt" id="bu-shown">—</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>User ID</th><th>Username</th><th>Refers</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="bu-tb"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">Fetch users above to see results</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ BROADCAST ═══ -->
+    <div class="tab" id="tab-broadcast">
+      <div class="grid-2col" style="align-items:start">
+        <div class="panel">
+          <div class="ph"><h2>📢 Global Broadcast</h2></div>
+          <div class="pb">
+            <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+              Sends to <strong style="color:var(--text)">all users</strong> across all clone bots.
+              Supports HTML: <code style="background:var(--s3);padding:1px 6px;border-radius:4px;font-size:11px">&lt;b&gt;</code>
+              <code style="background:var(--s3);padding:1px 6px;border-radius:4px;font-size:11px">&lt;i&gt;</code>
+              <code style="background:var(--s3);padding:1px 6px;border-radius:4px;font-size:11px">&lt;a href="..."&gt;</code>
+            </p>
+            <div class="form-group">
+              <div class="form-label">Target Audience</div>
+              <select class="inp" id="bc-target">
+                <option value="all">All Users</option>
+                <option value="premium">Premium Users Only</option>
+                <option value="free">Free Users Only</option>
+                <option value="vip">VIP Only</option>
+                <option value="botid">Specific Bot</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <div class="form-label">Message</div>
+              <textarea class="bc-ta" id="bc-msg" placeholder="Type your announcement here...&#10;&#10;Supports HTML: &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, &lt;a href='...'&gt;link&lt;/a&gt;"></textarea>
+              <div style="display:flex;justify-content:space-between;margin-top:6px">
+                <span style="font-size:11px;color:var(--muted)" id="bc-len">0 chars</span>
+                <span style="font-size:11px;color:var(--muted)">HTML supported</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn btn-ghost" onclick="document.getElementById('bc-msg').value='';document.getElementById('bc-len').textContent='0 chars'">Clear</button>
+              <button class="btn btn-primary" onclick="doBroadcast()">Send to All 📢</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="panel" style="margin-bottom:14px">
+            <div class="ph"><h2>📊 Broadcast Stats</h2></div>
+            <div class="pb">
+              <div class="stat-grid g2">
+                <div class="stat" style="padding:14px">
+                  <div class="stat-lbl">Last Broadcast</div>
+                  <div style="font-size:13px;font-weight:600;margin-top:4px">2h ago</div>
+                  <div class="stat-sub">98.2% delivered</div>
+                </div>
+                <div class="stat" style="padding:14px">
+                  <div class="stat-lbl">Total Sent</div>
+                  <div style="font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green);margin-top:4px">2,132</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph"><h2>📋 Message Templates</h2><button class="btn btn-ghost btn-sm" onclick="toast('Template saved!','ok')">+ Save</button></div>
+            <div class="pb" style="display:flex;flex-direction:column;gap:7px">
+              <button class="quick-action" onclick="loadTemplate('welcome')">👋 Welcome new users</button>
+              <button class="quick-action" onclick="loadTemplate('maintenance')">🔧 Maintenance notice</button>
+              <button class="quick-action" onclick="loadTemplate('promo')">🎁 Promotional offer</button>
+              <button class="quick-action" onclick="loadTemplate('update')">🚀 Feature update</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ BOT API CONFIG ═══ -->
+    <div class="tab" id="tab-botapi">
+      <div class="grid-2col" style="align-items:start">
+        <div>
+          <div class="panel" style="margin-bottom:14px">
+            <div class="ph"><h2>⚙️ Telegram Bot API Config</h2></div>
+            <div class="pb">
+              <div class="form-group">
+                <div class="form-label">Main Bot Token</div>
+                <div style="display:flex;gap:8px">
+                  <input class="inp" id="cfg-maintoken" type="password" placeholder="Main bot token" style="flex:1">
+                  <button class="btn btn-ghost btn-sm" onclick="toggleToken('cfg-maintoken')">👁</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="form-label">Telegram API ID</div>
+                <input class="inp" id="cfg-apiid" placeholder="e.g. 1234567">
+              </div>
+              <div class="form-group">
+                <div class="form-label">Telegram API Hash</div>
+                <input class="inp" id="cfg-apihash" type="password" placeholder="Your API hash from my.telegram.org">
+              </div>
+              <div class="form-group">
+                <div class="form-label">Database Channel ID</div>
+                <input class="inp" id="cfg-dbchan" placeholder="-100xxxxxxxxxx">
+              </div>
+              <div class="form-group">
+                <div class="form-label">Admin Telegram ID</div>
+                <input class="inp" id="cfg-adminid" placeholder="Your Telegram user ID">
+              </div>
+              <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn btn-ghost" onclick="toast('Testing connection…','ok')">Test Connection</button>
+                <button class="btn btn-primary" onclick="saveApiConfig()">💾 Save Config</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="ph"><h2>🔒 Webhook Settings</h2></div>
+            <div class="pb">
+              <div class="form-group">
+                <div class="form-label">Webhook URL</div>
+                <input class="inp" id="cfg-webhook" placeholder="https://yourdomain.com/webhook/token">
+              </div>
+              <div class="form-group">
+                <div class="form-label">Secret Token</div>
+                <input class="inp" id="cfg-secret" type="password" placeholder="Webhook secret">
+              </div>
+              <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn btn-danger btn-sm" onclick="toast('Webhook deleted!','ok')">Delete Webhook</button>
+                <button class="btn btn-primary btn-sm" onclick="toast('Webhook set!','ok')">Set Webhook</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel" style="margin-bottom:14px">
+            <div class="ph"><h2>📡 API Health Check</h2></div>
+            <div class="pb" style="display:flex;flex-direction:column;gap:10px">
+              <div class="api-card">
+                <div class="api-status-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+                <div class="api-info"><div class="api-name">Telegram API</div><div class="api-meta">api.telegram.org · 45ms avg</div></div>
+                <span class="badge bg">Online</span>
+              </div>
+              <div class="api-card">
+                <div class="api-status-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+                <div class="api-info"><div class="api-name">MongoDB</div><div class="api-meta">Atlas cluster · 12ms avg</div></div>
+                <span class="badge bg">Online</span>
+              </div>
+              <div class="api-card">
+                <div class="api-status-dot" style="background:var(--yellow)"></div>
+                <div class="api-info"><div class="api-name">Redis Cache</div><div class="api-meta">Degraded · high latency</div></div>
+                <span class="badge by">Degraded</span>
+              </div>
+              <div class="api-card">
+                <div class="api-status-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+                <div class="api-info"><div class="api-name">Webhook Listener</div><div class="api-meta">Active · last ping 3s ago</div></div>
+                <span class="badge bg">Active</span>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center" onclick="toast('Running health check…','ok')">⟳ Run Full Health Check</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="ph"><h2>🔑 API Rate Limits</h2></div>
+            <div class="pb">
+              <div style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="color:var(--muted)">Messages/sec</span><span style="font-family:'JetBrains Mono',monospace;color:var(--green)">28/30</span></div>
+                <div style="height:6px;background:var(--s4);border-radius:3px"><div style="height:100%;width:93%;background:var(--green);border-radius:3px"></div></div>
+              </div>
+              <div style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="color:var(--muted)">API calls/min</span><span style="font-family:'JetBrains Mono',monospace;color:var(--yellow)">55/60</span></div>
+                <div style="height:6px;background:var(--s4);border-radius:3px"><div style="height:100%;width:92%;background:var(--yellow);border-radius:3px"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="color:var(--muted)">Broadcast queue</span><span style="font-family:'JetBrains Mono',monospace;color:var(--cyan)">3 pending</span></div>
+                <div style="height:6px;background:var(--s4);border-radius:3px"><div style="height:100%;width:15%;background:var(--cyan);border-radius:3px"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SYSTEM LOGS ═══ -->
+    <div class="tab" id="tab-logs">
+      <div class="section-header">
+        <h2 style="font-size:14px;font-weight:700">📋 System Logs</h2>
+        <div style="display:flex;gap:8px">
+          <select class="inp" id="log-filter" onchange="filterLogs()" style="width:150px">
+            <option value="">All Types</option>
+            <option value="info">Info</option>
+            <option value="warn">Warning</option>
+            <option value="error">Error</option>
+            <option value="ban">Bans</option>
+            <option value="premium">Premium</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="clearLogs()">🗑 Clear</button>
+          <button class="btn btn-success btn-sm" onclick="exportLogs()">⬇️ Export</button>
+        </div>
+      </div>
+      <div class="grid-3col" style="margin-bottom:16px">
+        <div class="stat" style="padding:14px">
+          <div class="stat-lbl">Total Events</div><div class="stat-val" style="font-size:22px">1,428</div>
+        </div>
+        <div class="stat" style="padding:14px">
+          <div class="stat-lbl" style="color:var(--red)">Errors</div><div class="stat-val" style="font-size:22px;color:var(--red)">3</div>
+        </div>
+        <div class="stat" style="padding:14px">
+          <div class="stat-lbl" style="color:var(--yellow)">Warnings</div><div class="stat-val" style="font-size:22px;color:var(--yellow)">12</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><h2>Live Event Stream</h2>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--green)">
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s infinite"></span>
+            Live
+          </div>
+        </div>
+        <div class="pb" id="log-stream" style="max-height:500px;overflow-y:auto;padding:14px 20px">
+          <!-- demo logs -->
+          <div class="log-entry"><div class="log-dot" style="background:var(--green)"></div><div><div class="log-msg">✅ User <strong>@priya_win</strong> paid for VIP plan — $49.00</div><div class="log-time">2026-04-26 14:32:01</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--cyan)"></div><div><div class="log-msg">📢 Broadcast sent to 2,132 users (98.2% delivered)</div><div class="log-time">2026-04-26 14:10:44</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--red)"></div><div><div class="log-msg">🚫 User <strong>591827364</strong> banned by admin</div><div class="log-time">2026-04-26 13:58:22</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--accent)"></div><div><div class="log-msg">🗳 Giveaway #284 created by @RoyalReferBot — "Spring iPhone Giveaway"</div><div class="log-time">2026-04-26 13:44:17</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--yellow)"></div><div><div class="log-msg">⚠️ Redis cache latency spike: 480ms avg (threshold: 200ms)</div><div class="log-time">2026-04-26 13:30:08</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--green)"></div><div><div class="log-msg">🤖 New clone bot @NewTestBot registered by user 391827465</div><div class="log-time">2026-04-26 13:12:55</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--red)"></div><div><div class="log-msg">❌ API error 429 (Rate limit) from Telegram — auto-retry queued</div><div class="log-time">2026-04-26 12:58:34</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--cyan)"></div><div><div class="log-msg">🔗 Panel token <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:10px">abc123xyz</code> generated for @sona_1999</div><div class="log-time">2026-04-26 12:44:01</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--green)"></div><div><div class="log-msg">✅ Giveaway #281 closed — winner: @rehan_b (742 votes)</div><div class="log-time">2026-04-26 12:30:00</div></div></div>
+          <div class="log-entry"><div class="log-dot" style="background:var(--accent)"></div><div><div class="log-msg">📈 48 new users joined in last hour across all bots</div><div class="log-time">2026-04-26 12:00:00</div></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end .content -->
+</div><!-- end .main -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Navigation ────────────────────────────────────────────────
+const TABS={
+  overview:'Overview|Live stats and system health',
+  clones:'Clone Bots|All bot instances',
+  giveaways:'Giveaways|All polls and draws',
+  panels:'User Panels|Analytics panel links',
+  oldgiveaways:'Old Giveaways|Archived closed giveaways',
+  users:'All Users|Search, ban, export',
+  premium:'Premium Users|Subscriptions and tiers',
+  botusers:'Bot Users API|Fetch live via token',
+  broadcast:'Broadcast|Send messages to all users',
+  botapi:'Bot API Config|Tokens, webhooks, health',
+  logs:'System Logs|Live event stream',
+};
+
+function show(name,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(a=>a.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const[title,sub]=(TABS[name]||'Page|').split('|');
+  document.getElementById('tab-title').textContent=title;
+  document.getElementById('tab-sub').textContent=sub;
+  if(name==='clones') loadClones();
+  if(name==='giveaways') loadGiveaways();
+  if(name==='panels') loadPanels();
+  if(name==='users') loadUsers(1);
+  if(name==='oldgiveaways') loadOldGiveaways();
+  if(name==='premium') loadPremiumStats();
+  closeSidebar();
+}
+
+// ── Toast ────────────────────────────────────────────────────
+let _toastT;
+function toast(m,type='ok'){
+  const e=document.getElementById('toast');
+  e.textContent=m;e.className='toast show '+type;
+  clearTimeout(_toastT);_toastT=setTimeout(()=>e.className='toast',3400);
+}
+
+// ── Stats ────────────────────────────────────────────────────
+async function loadStats(){
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/stats')).json();
+    document.getElementById('s1').textContent=d.total_clones;
+    document.getElementById('s2').textContent=(d.total_users||0).toLocaleString();
+    document.getElementById('s3').textContent=d.active_polls;
+    document.getElementById('s4').textContent=(d.total_votes||0).toLocaleString();
+    document.getElementById('s5').textContent=d.total_giveaways;
+    document.getElementById('s6').textContent=d.total_panels;
+    document.getElementById('s7').textContent=d.banned_clones;
+    document.getElementById('uptime').textContent='Up '+d.uptime;
+    document.getElementById('uptime-topbar').textContent=d.uptime;
+    renderCharts(d);
+    loadBotStats();
+  }catch(e){/* no live backend in demo */}
+}
+
+async function loadBotStats(){
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/bot_stats')).json();
+    document.getElementById('bs-users').textContent=(d.total_users||0).toLocaleString();
+    document.getElementById('bs-live').textContent=(d.live_giveaways||0).toLocaleString();
+    document.getElementById('bs-closed').textContent=(d.closed_giveaways||0).toLocaleString();
+    document.getElementById('bs-banned').textContent=(d.banned_users||0).toLocaleString();
+  }catch(e){}
+}
+
+async function pollLiveUsers(){
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/live_users')).json();
+    const cnt=d.count||0;
+    const el=document.getElementById('live-user-count');
+    if(el) el.textContent=cnt.toLocaleString();
+    const bs=document.getElementById('bs-users');
+    if(bs) bs.textContent=cnt.toLocaleString();
+  }catch(e){}
+}
+
+function loadPremiumStats(){
+  // Demo values — replace with API call
+  document.getElementById('tier-vip').textContent='232';
+  document.getElementById('vip-active').textContent='198';
+  document.getElementById('vip-expiring').textContent='18';
+  document.getElementById('vip-expired').textContent='16';
+  document.getElementById('prem-cnt').textContent='232';
+  document.getElementById('premium-total').textContent='232';
+}
+
+// ── Charts ────────────────────────────────────────────────────
+let jC,uC;
+function renderCharts(d){
+  const cfg=(ctx,data,color,label)=>{
+    const g=ctx.createLinearGradient(0,0,0,185);
+    g.addColorStop(0,color+'55');g.addColorStop(1,color+'00');
+    return new Chart(ctx,{type:'line',data:{labels:d.daily_labels,datasets:[{label,data,borderColor:color,backgroundColor:g,fill:true,tension:.45,pointBackgroundColor:color,pointRadius:3,pointHoverRadius:5,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(13,13,31,.9)',borderColor:'rgba(26,26,56,.8)',borderWidth:1,padding:10,titleFont:{family:'Space Grotesk',size:11},bodyFont:{family:'JetBrains Mono',size:11}}},
+        scales:{x:{grid:{color:'rgba(26,26,56,.6)'},ticks:{color:'#7b7a9d',font:{size:10,family:'JetBrains Mono'}}},
+                y:{grid:{color:'rgba(26,26,56,.6)'},ticks:{color:'#7b7a9d',font:{size:10,family:'JetBrains Mono'}},beginAtZero:true}}}});
+  };
+  const c1=document.getElementById('joinChart').getContext('2d');
+  const c2=document.getElementById('usageChart').getContext('2d');
+  if(jC)jC.destroy();if(uC)uC.destroy();
+  jC=cfg(c1,d.daily_counts,'#9d5cf0','New Users');
+  uC=cfg(c2,d.usage_counts,'#06b6d4','Giveaways');
+}
+
+// ── Clones ───────────────────────────────────────────────────
+async function loadClones(){
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/clones')).json();
+    document.getElementById('clone-cnt').textContent=d.clones.length;
+    document.getElementById('clones-tb').innerHTML=d.clones.map(c=>{
+      const banned=c.is_banned;
+      return`<tr>
+        <td><strong>@${escHtml(c.bot_username||'—')}</strong></td>
+        <td>${c.owner_id}</td>
+        <td class="mono">${(c.total_users||0).toLocaleString()}</td>
+        <td class="mono" style="font-size:11px">${escHtml(c.channel_id||'—')}</td>
+        <td><span class="badge ${banned?'br':'bg'}"><span class="dot ${banned?'dr':'dg'}"></span>${banned?'Banned':'Active'}</span></td>
+        <td class="mono" style="font-size:11px">${c.created_at||'—'}</td>
+        <td style="display:flex;gap:5px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-xs" onclick="openCuModal('${escHtml(c.bot_username||'')}','${c.token||''}')">👥 Users</button>
+          ${banned
+            ?`<button class="btn btn-success btn-xs" onclick="unbanClone('${c.token}','${escHtml(c.bot_username)}')">✅ Unban</button>`
+            :`<button class="btn btn-danger btn-xs" onclick="banClone('${c.token}','${escHtml(c.bot_username)}')">🚫 Ban</button>`
+          }
+        </td>
+      </tr>`;
+    }).join('')||'<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">No bots found</td></tr>';
+    // Top clones
+    const top=d.clones.slice(0,5);
+    document.getElementById('top-clones').innerHTML=top.map((c,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid rgba(26,26,56,.5)">
+        <span style="font-size:11px;color:var(--muted);width:18px;text-align:center;font-family:'JetBrains Mono',monospace">${i+1}</span>
+        <div style="flex:1"><div style="font-size:12px;font-weight:600">@${escHtml(c.bot_username||'—')}</div>
+        <div style="font-size:10px;color:var(--muted)">${(c.total_users||0).toLocaleString()} users</div></div>
+        <span class="badge ${c.is_banned?'br':'bg'}" style="font-size:9px">${c.is_banned?'Banned':'Live'}</span>
+      </div>`).join('')||'<div style="padding:0 18px 12px;color:var(--muted);font-size:12px">No data</div>';
+  }catch(e){}
+}
+
+// ── Bot clone modal ──────────────────────────────────────────
+let _cuData=[];
+async function openCuModal(username,token){
+  document.getElementById('cu-modal').classList.add('open');
+  document.getElementById('cu-subtitle').textContent='@'+username+' · fetching live…';
+  document.getElementById('cu-loading').style.display='block';
+  document.getElementById('cu-empty').style.display='none';
+  document.getElementById('cu-tb').innerHTML='';
+  document.getElementById('cu-count').textContent='—';
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/clone_users?token='+encodeURIComponent(token)+'&username='+encodeURIComponent(username))).json();
+    _cuData=d.users||[];
+    renderCuUsers(_cuData);
+    document.getElementById('cu-subtitle').textContent='@'+username+' · '+_cuData.length+' users';
+    document.getElementById('cu-total-label').textContent=_cuData.length+' users total';
+  }catch(e){document.getElementById('cu-loading').textContent='Failed to load users.'}
+}
+function renderCuUsers(users){
+  document.getElementById('cu-loading').style.display='none';
+  if(!users.length){document.getElementById('cu-empty').style.display='block';document.getElementById('cu-count').textContent='0';return;}
+  document.getElementById('cu-count').textContent=users.length;
+  document.getElementById('cu-tb').innerHTML=users.map((u,i)=>`
+    <tr>
+      <td class="mono" style="padding:10px 16px;color:var(--muted)">${i+1}</td>
+      <td style="padding:10px 16px"><strong>${escHtml(u.first_name||'')} ${escHtml(u.last_name||'')}</strong></td>
+      <td class="mono" style="padding:10px 16px;user-select:all">${u.user_id}</td>
+      <td class="mono" style="padding:10px 16px">${u.referral_count||0}</td>
+      <td class="mono" style="padding:10px 16px;font-size:11px;color:var(--muted)">${u.joined_at||'—'}</td>
+    </tr>`).join('');
+}
+function filterCuUsers(){
+  const q=document.getElementById('cu-search').value.toLowerCase();
+  const filtered=q?_cuData.filter(u=>
+    (u.first_name||'').toLowerCase().includes(q)||
+    (u.last_name||'').toLowerCase().includes(q)||
+    String(u.user_id).includes(q)):_cuData;
+  renderCuUsers(filtered);
+  document.getElementById('cu-count').textContent=filtered.length;
+}
+function closeCuModal(){document.getElementById('cu-modal').classList.remove('open')}
+
+// ── Giveaways ────────────────────────────────────────────────
+async function loadGiveaways(){
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/giveaways')).json();
+    document.getElementById('ga-cnt').textContent=d.giveaways.length;
+    document.getElementById('ga-tb').innerHTML=d.giveaways.map(g=>`<tr>
+      <td class="mono">${g.giveaway_id}</td>
+      <td><strong>${escHtml(g.title||'Untitled')}</strong></td>
+      <td class="mono" style="font-size:11px">${escHtml(g.channel_id||'—')}</td>
+      <td class="mono">${g.vote_count||0}</td>
+      <td><span class="badge ${g.is_closed?'bm':'bg'}"><span class="dot ${g.is_closed?'dm':'dg'}"></span>${g.is_closed?'Closed':'Live'}</span></td>
+      <td class="mono" style="font-size:11px">${g.created_at||'—'}</td>
+      <td style="display:flex;gap:5px">
+        <button class="btn btn-ghost btn-xs" onclick="openParticipants('${g.giveaway_id}')">👥 Voters</button>
+        ${!g.is_closed?`<button class="btn btn-danger btn-xs" onclick="closeGiveaway('${g.giveaway_id}')">⏹ End</button>`:''}
+      </td>
+    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">No giveaways</td></tr>';
+    // Recent giveaways widget
+    document.getElementById('recent-ga').innerHTML=d.giveaways.slice(0,5).map(g=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid rgba(26,26,56,.5)">
+        <span class="dot ${g.is_closed?'dm':'dg'}" style="width:7px;height:7px;flex-shrink:0"></span>
+        <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(g.title||'Untitled')}</div>
+        <div style="font-size:10px;color:var(--muted)">${g.vote_count||0} votes</div></div>
+        <span style="font-size:10px;color:var(--muted);flex-shrink:0">${g.is_closed?'Closed':'Live'}</span>
+      </div>`).join('')||'<div style="padding:0 18px 12px;color:var(--muted);font-size:12px">No giveaways</div>';
+  }catch(e){}
+}
+
+// ── Participants modal ────────────────────────────────────────
+let _partData=[];
+async function openParticipants(gid){
+  document.getElementById('part-modal').classList.add('open');
+  document.getElementById('part-subtitle').textContent='Giveaway #'+gid+' · fetching…';
+  document.getElementById('part-loading').style.display='block';
+  document.getElementById('part-empty').style.display='none';
+  document.getElementById('part-tb').innerHTML='';
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/giveaway_participants?giveaway_id='+gid)).json();
+    _partData=d.participants||[];
+    renderParts(_partData);
+    document.getElementById('part-subtitle').textContent='#'+gid+' · '+_partData.length+' participants';
+  }catch(e){document.getElementById('part-loading').textContent='Failed to load.'}
+}
+function renderParts(pts){
+  document.getElementById('part-loading').style.display='none';
+  if(!pts.length){document.getElementById('part-empty').style.display='block';document.getElementById('part-count').textContent='0';return;}
+  document.getElementById('part-count').textContent=pts.length;
+  document.getElementById('part-tb').innerHTML=pts.map((p,i)=>`
+    <tr><td class="mono" style="padding:10px 16px;color:var(--muted)">${i+1}</td>
+    <td style="padding:10px 16px"><strong>${escHtml(p.first_name||'')} ${escHtml(p.last_name||'')}</strong></td>
+    <td class="mono" style="padding:10px 16px">${p.user_id}</td>
+    <td class="mono" style="padding:10px 16px">${p.referral_count||0}</td>
+    <td class="mono" style="padding:10px 16px;font-size:11px;color:var(--muted)">${p.voted_at||'—'}</td></tr>`).join('');
+}
+function filterParticipants(){
+  const q=document.getElementById('part-search').value.toLowerCase();
+  renderParts(q?_partData.filter(p=>(p.first_name||'').toLowerCase().includes(q)||String(p.user_id).includes(q)):_partData);
+}
+function closeParticipants(){document.getElementById('part-modal').classList.remove('open')}
+
+// ── Panels ───────────────────────────────────────────────────
+async function loadPanels(){
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/panels')).json();
+    document.getElementById('panel-cnt').textContent=d.panels.length;
+    document.getElementById('panels-tb').innerHTML=d.panels.map(p=>`<tr>
+      <td class="mono" style="user-select:all;font-size:11px">${p.token}</td>
+      <td>${p.panel_type||'—'}</td>
+      <td class="mono">${p.channel_id||'—'}</td>
+      <td class="mono" style="font-size:11px">${p.created_at||'—'}</td>
+      <td><a href="/panel/${p.token}" target="_blank" style="color:var(--a3);font-size:11px">🔗 Open</a></td>
+      <td><button class="btn btn-danger btn-xs" onclick="deletePanel('${p.token}')">🗑</button></td>
+    </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No panels</td></tr>';
+  }catch(e){}
+}
+async function deletePanel(token){
+  if(!confirm('Delete panel '+token+'?'))return;
+  await fetch('/adminpanel/royalisbest/api/delete_panel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  toast('✅ Panel deleted','ok');loadPanels();
+}
+
+// ── Old Giveaways ─────────────────────────────────────────────
+let _ogData=[];
+async function loadOldGiveaways(){
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/archive_list')).json();
+    _ogData=d.giveaways||[];
+    renderOG(_ogData);
+    document.getElementById('og-cnt').textContent=_ogData.length;
+  }catch(e){}
+}
+function renderOG(arr){
+  document.getElementById('og-tb').innerHTML=arr.map(g=>`<tr>
+    <td class="mono">${g.giveaway_id}</td>
+    <td><strong>${escHtml(g.title||'Untitled')}</strong></td>
+    <td class="mono" style="font-size:11px">${g.created_at||'—'}</td>
+    <td class="mono" style="font-size:11px">${g.ended_at||'—'}</td>
+    <td class="mono">${g.vote_count||0}</td>
+    <td><span class="badge ${g.archived?'bg':'bm'}">${g.archived?'Yes':'No'}</span></td>
+    <td>${g.panel_token?`<a href="/panel/${g.panel_token}" target="_blank" style="color:var(--a3);font-size:11px">🔗 Panel</a>`:'—'}</td>
+    <td><button class="btn btn-ghost btn-xs" onclick="openParticipants('${g.giveaway_id}')">👥</button></td>
+  </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">No archived giveaways</td></tr>';
+}
+function filterOldGiveaways(){
+  const q=document.getElementById('og-search').value.toLowerCase();
+  renderOG(q?_ogData.filter(g=>(g.title||'').toLowerCase().includes(q)||String(g.giveaway_id).includes(q)):_ogData);
+}
+function showDeleteOldModal(){document.getElementById('og-delete-modal').style.display='flex'}
+function closeDeleteOldModal(){document.getElementById('og-delete-modal').style.display='none'}
+async function confirmDeleteOld(){
+  const months=parseInt(document.getElementById('og-months-input').value)||3;
+  await fetch('/adminpanel/royalisbest/api/delete_old_archives',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({months})});
+  toast('🗑 Old records deleted','ok');closeDeleteOldModal();loadOldGiveaways();
+}
+
+// ── Clone ban/unban ──────────────────────────────────────────
+async function banClone(token,uname){
+  if(!confirm('Ban bot @'+uname+'?'))return;
+  await fetch('/adminpanel/royalisbest/api/ban_clone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  toast('🚫 Bot @'+uname+' banned','ok');loadClones();
+}
+async function unbanClone(token,uname){
+  if(!confirm('Unban bot @'+uname+'?'))return;
+  await fetch('/adminpanel/royalisbest/api/unban_clone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  toast('✅ Bot @'+uname+' unbanned','ok');loadClones();
+}
+async function closeGiveaway(gid){
+  if(!confirm('Close giveaway #'+gid+'?'))return;
+  await fetch('/adminpanel/royalisbest/api/close_giveaway',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({giveaway_id:gid})});
+  toast('⏹ Giveaway closed','ok');loadGiveaways();
+}
+
+// ── Users ────────────────────────────────────────────────────
+let _userPage=1,_userSearch='',_userDebounce=null;
+function debounceUserSearch(){clearTimeout(_userDebounce);_userDebounce=setTimeout(()=>loadUsers(1),400)}
+
+async function loadUsers(page=1){
+  _userPage=page;
+  _userSearch=document.getElementById('user-search').value.trim();
+  const qs=`page=${page}&search=${encodeURIComponent(_userSearch)}`;
+  try{
+    const d=await(await fetch('/adminpanel/royalisbest/api/users?'+qs)).json();
+    document.getElementById('user-total').textContent=d.total.toLocaleString()+' users total';
+    document.getElementById('user-cnt').textContent=d.total.toLocaleString();
+    document.getElementById('users-tb').innerHTML=d.users.length
+      ?d.users.map(u=>{
+          const banned=u.is_banned;
+          const uname=u.username?`<a href="https://t.me/${u.username}" target="_blank" style="color:var(--a3)">@${u.username}</a>`:'—';
+          return`<tr>
+            <td class="mono" style="user-select:all">${u.user_id}</td>
+            <td><strong>${escHtml(u.first_name||'')}</strong></td>
+            <td>${escHtml(u.last_name||'—')}</td>
+            <td>${uname}</td>
+            <td class="mono" style="font-size:11px">${u.joined_at||'—'}</td>
+            <td><span class="badge ${banned?'br':'bg'}"><span class="dot ${banned?'dr':'dg'}"></span>${banned?'Banned':'Active'}</span></td>
+            <td style="display:flex;gap:5px;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-xs" onclick="copyId(${u.user_id})">📋</button>
+              ${banned
+                ?`<button class="btn btn-success btn-xs" onclick="doUnbanUser(${u.user_id},'${escHtml(u.first_name)}')">✅ Unban</button>`
+                :`<button class="btn btn-danger btn-xs" onclick="doBanUserId(${u.user_id},'${escHtml(u.first_name)}')">🚫 Ban</button>`
+              }
+            </td>
+          </tr>`;
+        }).join('')
+      :'<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">No users found</td></tr>';
+    // Pagination
+    const pages=document.getElementById('user-pages');
+    if(d.pages<=1){pages.innerHTML='';return;}
+    let html='';const p=d.page,tot=d.pages;
+    const btn=(n,label,active)=>`<button class="btn btn-sm ${active?'btn-primary':'btn-ghost'}" onclick="loadUsers(${n})">${label}</button>`;
+    if(p>1)html+=btn(p-1,'←');
+    const lo=Math.max(1,p-2),hi=Math.min(tot,p+2);
+    if(lo>1){html+=btn(1,'1');if(lo>2)html+='<span style="color:var(--muted);padding:0 4px">…</span>';}
+    for(let i=lo;i<=hi;i++) html+=btn(i,i,i===p);
+    if(hi<tot){if(hi<tot-1)html+='<span style="color:var(--muted);padding:0 4px">…</span>';html+=btn(tot,tot);}
+    if(p<tot)html+=btn(p+1,'→');
+    pages.innerHTML=html;
+  }catch(e){}
+}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function copyId(id){navigator.clipboard.writeText(String(id)).then(()=>toast('📋 ID copied: '+id,'ok'))}
+async function doBanUserId(uid,name){
+  if(!confirm('Ban '+name+' ('+uid+')?'))return;
+  const r=await fetch('/adminpanel/royalisbest/api/ban_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid})});
+  const j=await r.json();
+  if(j.ok){toast('🚫 '+name+' banned','ok');loadUsers(_userPage);}
+  else toast('❌ Failed','err');
+}
+async function doUnbanUser(uid,name){
+  if(!confirm('Unban '+name+' ('+uid+')?'))return;
+  const r=await fetch('/adminpanel/royalisbest/api/unban_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid})});
+  if((await r.json()).ok){toast('✅ '+name+' unbanned','ok');loadUsers(_userPage);}
+  else toast('❌ Failed','err');
+}
+async function doBanUser(){
+  const uid=document.getElementById('ban-id').value.trim();
+  if(!uid){toast('❌ Enter a user ID','err');return;}
+  if(!confirm('Ban user ID '+uid+'?'))return;
+  const r=await fetch('/adminpanel/royalisbest/api/ban_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:parseInt(uid)})});
+  if((await r.json()).ok){toast('🚫 User '+uid+' banned','ok');document.getElementById('ban-id').value='';loadUsers(_userPage);}
+  else toast('❌ Failed','err');
+}
+function exportUsersCSV(){window.open('/adminpanel/royalisbest/api/users/export','_blank')}
+
+// ── Premium ──────────────────────────────────────────────────
+function filterPremiumUsers(){
+  const q=document.getElementById('prem-search').value.toLowerCase();
+  const tier=document.getElementById('prem-filter').value;
+  document.querySelectorAll('#premium-tb tr').forEach(tr=>{
+    const text=tr.textContent.toLowerCase();
+    const matchQ=!q||text.includes(q);
+    const matchT=!tier||text.includes(tier);
+    tr.style.display=matchQ&&matchT?'':'none';
+  });
+}
+function openGrantPremiumModal(){document.getElementById('grant-modal').classList.add('open')}
+function closeGrantPremiumModal(){document.getElementById('grant-modal').classList.remove('open')}
+function editPremium(uid){toast('✏️ Opening editor for '+uid,'ok')}
+function revokePremium(uid,uname){
+  if(!confirm('Revoke premium for @'+uname+'?'))return;
+  toast('🚫 Premium revoked for @'+uname,'ok');
+}
+function exportPremiumCSV(){toast('⬇️ Exporting premium users…','ok')}
+async function doGrantPremium(){
+  const uid=document.getElementById('grant-uid').value.trim();
+  const tier=document.getElementById('grant-tier').value;
+  const expiry=document.getElementById('grant-expiry').value;
+  if(!uid){toast('❌ Enter a user ID','err');return;}
+  toast('⭐ Granting '+tier+' to '+uid+'…','ok');
+  closeGrantPremiumModal();
+}
+
+// ── Bot Users API tab ─────────────────────────────────────────
+let _buData=[];
+function fetchBotUsers(){
+  const token=document.getElementById('bu-token').value.trim();
+  if(!token){toast('❌ Enter a bot token','err');return;}
+  toast('⚡ Fetching users from bot…','ok');
+  // Simulated result
+  setTimeout(()=>{
+    document.getElementById('bu-result-card').style.display='block';
+    document.getElementById('bu-table-card').style.display='block';
+    document.getElementById('bu-total').textContent='1,240';
+    document.getElementById('bu-banned').textContent='18';
+    document.getElementById('bu-result-cnt').textContent='1,240';
+    document.getElementById('bu-shown').textContent='1,240';
+    document.getElementById('bu-tb').innerHTML=`
+      <tr><td class="mono" style="padding:10px 14px;color:var(--muted)">1</td>
+      <td style="padding:10px 14px"><strong>Priya Sharma</strong></td>
+      <td class="mono" style="padding:10px 14px">589234710</td>
+      <td style="padding:10px 14px;color:var(--a3)">@priya_win</td>
+      <td class="mono" style="padding:10px 14px">48</td>
+      <td class="mono" style="padding:10px 14px;font-size:11px;color:var(--muted)">2026-04-10</td>
+      <td><span class="badge bg"><span class="dot dg"></span>Active</span></td>
+      <td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="toast('📋 Copied','ok')">📋</button><button class="btn btn-danger btn-xs">🚫</button></td></tr>
+      <tr><td class="mono" style="padding:10px 14px;color:var(--muted)">2</td>
+      <td style="padding:10px 14px"><strong>Amit Kumar</strong></td>
+      <td class="mono" style="padding:10px 14px">391827465</td>
+      <td style="padding:10px 14px;color:var(--a3)">@amit_rox</td>
+      <td class="mono" style="padding:10px 14px">31</td>
+      <td class="mono" style="padding:10px 14px;font-size:11px;color:var(--muted)">2026-04-12</td>
+      <td><span class="badge bg"><span class="dot dg"></span>Active</span></td>
+      <td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="toast('📋 Copied','ok')">📋</button><button class="btn btn-danger btn-xs">🚫</button></td></tr>`;
+    toast('✅ Fetched 1,240 users successfully','ok');
+  },1200);
+}
+function clearBotUsers(){
+  document.getElementById('bu-token').value='';
+  document.getElementById('bu-result-card').style.display='none';
+  document.getElementById('bu-table-card').style.display='none';
+  toast('Cleared','ok');
+}
+function filterBotUsers(){
+  const q=document.getElementById('bu-search').value.toLowerCase();
+  document.querySelectorAll('#bu-tb tr').forEach(tr=>{
+    tr.style.display=!q||tr.textContent.toLowerCase().includes(q)?'':'none';
+  });
+}
+function exportBotUsersCSV(){toast('⬇️ Exporting CSV…','ok')}
+function copyBotUsersJSON(){navigator.clipboard.writeText('[]').then(()=>toast('📋 JSON copied','ok'))}
+function fetchWithToken(name){toast('⚡ Fetching '+name+' users…','ok')}
+
+// ── Broadcast ────────────────────────────────────────────────
+document.getElementById('bc-msg').addEventListener('input',function(){
+  document.getElementById('bc-len').textContent=this.value.length+' chars';
+});
+async function doBroadcast(){
+  const msg=document.getElementById('bc-msg').value.trim();
+  if(!msg){toast('❌ Write a message first','err');return;}
+  const target=document.getElementById('bc-target').value;
+  toast('📢 Broadcasting to '+target+' users…','ok');
+  try{await fetch('/adminpanel/royalisbest/api/broadcast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,parse_mode:'HTML',target})});}catch(e){}
+}
+const templates={
+  welcome:'👋 <b>Welcome to RoyalityBots!</b>\n\nYou can now participate in giveaways and referral contests. Type /help to get started.',
+  maintenance:'🔧 <b>Scheduled Maintenance</b>\n\nWe will be offline for maintenance from 2:00–3:00 AM UTC. We apologize for the inconvenience.',
+  promo:'🎁 <b>Special Offer!</b>\n\nUpgrade to Premium this week and get <b>50% off</b> your first month. Use code <code>ROYAL50</code>',
+  update:'🚀 <b>New Features Available!</b>\n\nWe just launched new analytics tools. Check your dashboard to see what\'s new!',
+};
+function loadTemplate(name){
+  document.getElementById('bc-msg').value=templates[name]||'';
+  document.getElementById('bc-len').textContent=(templates[name]||'').length+' chars';
+  toast('📋 Template loaded','ok');
+}
+
+// ── API Config ───────────────────────────────────────────────
+function toggleToken(id){
+  const el=document.getElementById(id);
+  el.type=el.type==='password'?'text':'password';
+}
+function saveApiConfig(){toast('💾 Config saved!','ok')}
+
+// ── Logs ─────────────────────────────────────────────────────
+function filterLogs(){toast('Filtering logs…','ok')}
+function clearLogs(){toast('Logs cleared','ok')}
+function exportLogs(){toast('⬇️ Exporting logs…','ok')}
+
+// ── Sidebar mobile ────────────────────────────────────────────
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sb-overlay');
+  const open=sb.classList.toggle('open');
+  ov.style.display=open?'block':'none';
+}
+function closeSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sb-overlay');
+  sb.classList.remove('open');
+  ov.style.display='none';
+}
+
+// ── Init ─────────────────────────────────────────────────────
+async function loadAll(){
+  await loadStats();
+  loadClones();
+  loadGiveaways();
+  loadPremiumStats();
+}
+
+// Responsive hamburger
+function checkHamburger(){
+  const hb=document.querySelector('.hamburger');
+  if(hb) hb.style.display=window.innerWidth<=768?'flex':'none';
+}
+checkHamburger();
+window.addEventListener('resize',()=>{checkHamburger();if(window.innerWidth>768)closeSidebar()});
+
+// Uptime live ticker
+let uptimeSeconds=Math.floor(Math.random()*86400*3);
+setInterval(()=>{
+  uptimeSeconds++;
+  const d=Math.floor(uptimeSeconds/86400);
+  const h=Math.floor((uptimeSeconds%86400)/3600);
+  const m=Math.floor((uptimeSeconds%3600)/60);
+  const str=d>0?`${d}d ${h}h`:`${h}h ${m}m`;
+  document.getElementById('uptime').textContent=str;
+  document.getElementById('uptime-topbar').textContent=str;
+},1000);
+
+loadAll();
+setInterval(loadStats,30000);
+pollLiveUsers();
+setInterval(pollLiveUsers,10000);
+
+// Live log auto-append (demo)
+const logEvents=[
+  {color:'var(--green)',msg:'✅ New user joined @RoyalReferBot'},
+  {color:'var(--accent)',msg:'🗳 New vote on Giveaway #284'},
+  {color:'var(--cyan)',msg:'📢 Broadcast queued for 2,132 users'},
+  {color:'var(--gold)',msg:'⭐ User upgraded to Pro plan'},
+  {color:'var(--red)',msg:'🚫 Suspicious activity flagged for review'},
+];
+setInterval(()=>{
+  const stream=document.getElementById('log-stream');
+  if(!stream)return;
+  const ev=logEvents[Math.floor(Math.random()*logEvents.length)];
+  const now=new Date().toISOString().replace('T',' ').slice(0,19);
+  const entry=document.createElement('div');
+  entry.className='log-entry';
+  entry.style.opacity='0';entry.style.transition='opacity .4s';
+  entry.innerHTML=`<div class="log-dot" style="background:${ev.color}"></div><div><div class="log-msg">${ev.msg}</div><div class="log-time">${now}</div></div>`;
+  stream.prepend(entry);
+  requestAnimationFrame(()=>entry.style.opacity='1');
+  if(stream.children.length>30) stream.lastChild.remove();
+},5000);
+</script>
+</body>
+</html>

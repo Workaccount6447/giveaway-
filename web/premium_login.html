@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RoyalityBots — Premium Login</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #07070e;
+  color: #f1f0ff;
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(108,92,231,.18), transparent),
+    radial-gradient(ellipse 40% 30% at 80% 80%, rgba(0,206,201,.08), transparent);
+}
+
+/* noise */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0;
+}
+
+.card {
+  background: #0e0e1a;
+  border: 1px solid #1e1e32;
+  border-radius: 24px;
+  padding: 44px 40px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 0 100px rgba(108,92,231,.12), 0 0 40px rgba(0,0,0,.5);
+  position: relative; z-index: 1;
+  animation: fadeUp .4s ease;
+}
+@keyframes fadeUp { from { transform: translateY(24px); opacity: 0; } }
+
+.logo {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.logo-crown {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 0 16px rgba(241,196,15,.4));
+}
+.logo h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px; font-weight: 800;
+  background: linear-gradient(135deg, #c084fc, #a78bfa, #6c5ce7);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.logo p {
+  color: #5a5880;
+  font-size: 12px; margin-top: 6px;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.premium-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(241,196,15,.1); border: 1px solid rgba(241,196,15,.3);
+  border-radius: 999px; padding: 4px 12px;
+  font-size: 11px; color: #f1c40f; font-weight: 600;
+  margin-top: 10px;
+}
+
+label {
+  display: block;
+  font-size: 11px; color: #5a5880;
+  margin-bottom: 6px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.input-wrap {
+  position: relative; margin-bottom: 18px;
+}
+.input-icon {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  font-size: 16px; pointer-events: none;
+}
+input {
+  width: 100%;
+  background: #0d0d18;
+  border: 1px solid #1e1e32;
+  border-radius: 12px;
+  padding: 13px 16px 13px 42px;
+  color: #f1f0ff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+input:focus {
+  border-color: #6c5ce7;
+  box-shadow: 0 0 0 3px rgba(108,92,231,.12);
+}
+input::placeholder { color: #3a3860; }
+
+button[type="submit"] {
+  width: 100%;
+  background: linear-gradient(135deg, #6c5ce7, #8b5cf6);
+  border: none; border-radius: 12px;
+  padding: 14px; color: #fff;
+  font-family: 'Syne', sans-serif;
+  font-size: 15px; font-weight: 700;
+  cursor: pointer;
+  transition: opacity .2s, transform .15s;
+  margin-top: 4px;
+  letter-spacing: .02em;
+}
+button[type="submit"]:hover  { opacity: .9; transform: translateY(-1px); }
+button[type="submit"]:active { transform: translateY(0); }
+
+.error {
+  background: rgba(225,112,85,.1);
+  border: 1px solid rgba(225,112,85,.25);
+  color: #e17055;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 18px;
+  animation: fadeUp .2s ease;
+}
+
+hr { border: none; border-top: 1px solid #1a1a2e; margin: 24px 0; }
+.hint {
+  text-align: center;
+  font-size: 12px; color: #3a3860;
+  line-height: 1.6;
+}
+.hint strong { color: #5a5880; }
+
+/* Mobile specific */
+@media (max-width: 480px) {
+  .card { padding: 36px 24px; border-radius: 20px; }
+  body  { padding: 16px; align-items: flex-start; padding-top: 40px; }
+}
+</style>
+</head>
+<body>
+
+<script>
+try {
+  if (window.Telegram && Telegram.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+} catch(e){}
+</script>
+
+<div class="card">
+  <div class="logo">
+    <span class="logo-crown">👑</span>
+    <h1>RoyalityBots</h1>
+    <p>Premium User Access</p>
+    <div class="premium-tag">⭐ Exclusive Dashboard</div>
+  </div>
+
+  <!-- Error placeholder — injected by server -->
+  __ERROR_BLOCK__
+
+  <form method="POST" action="/tg/premium/login">
+    <label>Username</label>
+    <div class="input-wrap">
+      <span class="input-icon">👤</span>
+      <input type="text" name="username" required autocomplete="username" placeholder="your username" autofocus>
+    </div>
+
+    <label>Password</label>
+    <div class="input-wrap">
+      <span class="input-icon">🔑</span>
+      <input type="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+    </div>
+
+    <button type="submit">Sign In →</button>
+  </form>
+
+  <hr>
+  <p class="hint">
+    Access is restricted to <strong>premium users only</strong>.<br>
+    Ask your admin to run <code style="background:#111;padding:2px 6px;border-radius:4px;font-size:11px">/addpreuser id:username:password</code>
+  </p>
+</div>
+
+</body>
+</html>
